@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>OpenCode Go 模型性价比散点图（预览）</title>
+<title>OpenCode Go 模型性价比散点图（SWE-bench Verified）</title>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
 <style>
   :root { color-scheme: light; }
@@ -31,19 +31,22 @@
   .tag { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 600; }
   .tag-60 { background: #eef2ff; color: #4338ca; }
   .tag-15 { background: #fff7ed; color: #c2410c; }
+  .tag-top { background: #fef2f2; color: #b91c1c; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <div id="chart"></div>
   <div class="note">
-    <b>说明：</b>质量分为<b>占位示意值</b>（0–100），不代表任何真实评测成绩，待替换为 SWE-bench Verified / LMArena 数据后重算帕累托前沿。
-    请求数与单次成本根据官方文档估算口径推算（单次成本 = 档位额度 ÷ 月请求数，含峰值价口径）。实心圆 = $60 档，空心圆 = $15 档。
+    <b>数据口径：</b>质量分 = SWE-bench Verified 通过率。主来源 <b>benchmarklist.com 官方榜单</b>（采样 2026-07-28）；
+    DeepSeek V4 Flash ≈79% 为 OrcaRouter 聚合值（DeepSeek 官方日志自报，2026-07-31）；Hy3 78% 引自界面新闻报道（2026-07）；
+    Qwen3.7 Plus 77.7% 引自 benchmarklist 模型页。各模型评测时的 reasoning 配置不同，分数不宜跨配置严格比较；请求数与单次成本按 OpenCode Go 官方估算口径推算（含峰值价口径）。实心圆 = $60 档，空心圆 = $15 档。
+    <br/><b>结论：</b>帕累托前沿坍缩为<b>单点</b>——GPT 5.6 Luna 以最低档成本（$0.00146/次）取得最高分（93.0%），在 SWE-bench Verified 维度支配其余全部模型；DeepSeek V4 Flash 则以 3.7 倍请求量（37,800/月）提供 79% 的接近分数，是"量大管饱"的流量型选择。
   </div>
   <table id="data-table">
     <thead>
       <tr>
-        <th>模型</th><th>家族</th><th>档位</th><th>月请求数</th><th>每 $1 请求数</th><th>单次成本 ($)</th><th>质量分（占位）</th>
+        <th>模型</th><th>家族</th><th>档位</th><th>月请求数</th><th>每 $1 请求数</th><th>单次成本 ($)</th><th>SWE-bench Verified</th><th>分数来源</th>
       </tr>
     </thead>
     <tbody></tbody>
@@ -62,18 +65,18 @@ const FAMILY_COLOR = {
   'MiniMax':  '#F97316'
 };
 
-// 质量分 q 为占位示意值（0–100），非真实评测数据
+// q = SWE-bench Verified 通过率（%），src = 分数来源标签
 const RAW = [
-  { name: 'Grok 4.5',            family: 'Grok',     tier: 15, req: 600,   per1: 60,    cost: 0.02500, q: 94 },
-  { name: 'GPT 5.6 Luna',        family: 'OpenAI',   tier: 15, req: 10250, per1: 1025,  cost: 0.00146, q: 90 },
-  { name: 'DeepSeek V4 Pro',     family: 'DeepSeek', tier: 15, req: 5200,  per1: 520,   cost: 0.00288, q: 91 },
-  { name: 'DeepSeek V4 Flash',   family: 'DeepSeek', tier: 60, req: 37800, per1: 3780,  cost: 0.00159, q: 81 },
-  { name: 'GLM-5.2',             family: 'GLM',      tier: 60, req: 4300,  per1: 430,   cost: 0.01395, q: 86 },
-  { name: 'Kimi K2.7 Code',      family: 'Kimi',     tier: 60, req: 6750,  per1: 675,   cost: 0.00889, q: 85 },
-  { name: 'Qwen3.7 Max',         family: 'Qwen',     tier: 60, req: 1690,  per1: 169,   cost: 0.03550, q: 88 },
-  { name: 'Qwen3.7 Plus',        family: 'Qwen',     tier: 60, req: 21600, per1: 2160,  cost: 0.00278, q: 79 },
-  { name: 'Hy3',                 family: 'Hy3',      tier: 60, req: 21500, per1: 2150,  cost: 0.00279, q: 77 },
-  { name: 'MiniMax M3',          family: 'MiniMax',  tier: 60, req: 16000, per1: 1600,  cost: 0.00375, q: 75 }
+  { name: 'Grok 4.5',            family: 'Grok',     tier: 15, req: 600,   per1: 60,    cost: 0.02500, q: 86.6, src: 'benchmarklist 榜单' },
+  { name: 'GPT 5.6 Luna',        family: 'OpenAI',   tier: 15, req: 10250, per1: 1025,  cost: 0.00146, q: 93.0, src: 'benchmarklist 榜单', top: true },
+  { name: 'DeepSeek V4 Pro',     family: 'DeepSeek', tier: 15, req: 5200,  per1: 520,   cost: 0.00288, q: 77.4, src: 'benchmarklist 榜单' },
+  { name: 'DeepSeek V4 Flash',   family: 'DeepSeek', tier: 60, req: 37800, per1: 3780,  cost: 0.00159, q: 79.0, src: 'OrcaRouter 聚合≈' },
+  { name: 'GLM-5.2',             family: 'GLM',      tier: 60, req: 4300,  per1: 430,   cost: 0.01395, q: 82.8, src: 'benchmarklist 榜单' },
+  { name: 'Kimi K2.7 Code',      family: 'Kimi',     tier: 60, req: 6750,  per1: 675,   cost: 0.00889, q: 78.2, src: 'benchmarklist 榜单' },
+  { name: 'Qwen3.7 Max',         family: 'Qwen',     tier: 60, req: 1690,  per1: 169,   cost: 0.03550, q: 68.8, src: 'benchmarklist 榜单' },
+  { name: 'Qwen3.7 Plus',        family: 'Qwen',     tier: 60, req: 21600, per1: 2160,  cost: 0.00278, q: 77.7, src: 'benchmarklist 模型页' },
+  { name: 'Hy3',                 family: 'Hy3',      tier: 60, req: 21500, per1: 2150,  cost: 0.00279, q: 78.0, src: '界面新闻' },
+  { name: 'MiniMax M3',          family: 'MiniMax',  tier: 60, req: 16000, per1: 1600,  cost: 0.00375, q: 75.0, src: 'benchmarklist 榜单' }
 ];
 
 // ---- 数据表 ----
@@ -88,7 +91,8 @@ const RAW = [
       '<td>' + m.req.toLocaleString('en-US') + '</td>' +
       '<td>' + m.per1.toLocaleString('en-US') + '</td>' +
       '<td>$' + m.cost.toFixed(4) + '</td>' +
-      '<td>' + m.q + '（占位）</td>';
+      '<td>' + (m.top ? '<span class="tag tag-top">' : '') + m.q.toFixed(1) + '%' + (m.top ? '</span>' : '') + '</td>' +
+      '<td>' + m.src + '</td>';
     tb.appendChild(tr);
   });
 })();
@@ -120,6 +124,8 @@ if (typeof echarts === 'undefined') {
     req: m.req,
     per1: m.per1,
     cost: m.cost,
+    q: m.q,
+    src: m.src,
     itemStyle: m.tier === 15
       ? { color: '#ffffff', borderColor: FAMILY_COLOR[f], borderWidth: 2.5 }
       : { color: FAMILY_COLOR[f] }
@@ -134,35 +140,29 @@ if (typeof echarts === 'undefined') {
     label: {
       show: true, position: 'top', formatter: p => p.data.name,
       fontSize: 10, color: '#6b7280'
-    }
-  }));
-
-  const frontier = window.FRONTIER.map(m => [m.cost, m.q]);
-
-  series.push({
-    name: 'Pareto 前沿（示意）',
-    type: 'line',
-    data: frontier,
-    symbol: 'none',
-    lineStyle: { color: '#dc2626', width: 2, type: 'dashed' },
-    endLabel: { show: true, formatter: 'Pareto 前沿', color: '#dc2626', fontSize: 11, fontWeight: 600 },
-    tooltip: { show: false },
-    markLine: {
+    },
+    markPoint: f === 'OpenAI' ? {
+      symbol: 'pin', symbolSize: 50,
+      label: { show: true, formatter: '帕累托\n最优', fontSize: 10, color: '#fff' },
+      itemStyle: { color: '#dc2626' },
+      data: [{ coord: [0.00146, 93.0], value: '帕累托最优' }]
+    } : undefined,
+    markLine: f === 'OpenAI' ? {
       symbol: 'none', silent: true,
       lineStyle: { color: '#9ca3af', type: 'dotted', width: 1 },
       label: { color: '#9ca3af', fontSize: 10, formatter: '{b}' },
       data: [
         { xAxis: 0.00986, name: '平均成本线' },
-        { yAxis: 84.6, name: '平均质量线' }
+        { yAxis: 79.7, name: '平均质量线 79.7%' }
       ]
-    }
-  });
+    } : undefined
+  }));
 
   chart.setOption({
     backgroundColor: '#fff',
     title: {
-      text: 'OpenCode Go 模型性价比散点图（预览）',
-      subtext: 'X: 单次请求成本（对数轴） · Y: 质量分（占位示意） · 气泡大小: 月请求数 · 实心=$60档 / 空心=$15档',
+      text: 'OpenCode Go 模型性价比散点图（SWE-bench Verified）',
+      subtext: 'X: 单次请求成本（对数轴） · Y: SWE-bench Verified 通过率(%) · 气泡大小: 月请求数 · 实心=$60档 / 空心=$15档',
       left: 16, top: 12,
       textStyle: { fontSize: 18, color: '#111827' },
       subtextStyle: { fontSize: 11, color: '#9ca3af' }
@@ -173,20 +173,20 @@ if (typeof echarts === 'undefined') {
       formatter: p => {
         if (!p.data || !p.data.name) return '';
         const d = p.data;
-        return '<div style="font-size:12px;line-height:1.8;min-width:190px">' +
+        return '<div style="font-size:12px;line-height:1.8;min-width:210px">' +
           '<b style="font-size:13px">' + d.name + '</b>' +
           '<span style="margin-left:6px;color:#9ca3af">' + d.family + '</span><br/>' +
           '档位: <b>$' + d.tier + '</b> / 月请求数: <b>' + d.req.toLocaleString('en-US') + '</b><br/>' +
           '每 $1 请求数: <b>' + d.per1.toLocaleString('en-US') + '</b><br/>' +
           '单次成本: <b>$' + d.cost.toFixed(4) + '</b><br/>' +
-          '质量分(占位): <b>' + d.q + '</b><br/>' +
-          '<span style="color:#dc2626">※ 质量分为占位示意值</span></div>';
+          'SWE-bench Verified: <b>' + d.q.toFixed(1) + '%</b><br/>' +
+          '<span style="color:#9ca3af">来源: ' + d.src + '</span></div>';
       }
     },
     legend: {
       top: 10, right: 16, type: 'scroll', icon: 'circle',
       textStyle: { fontSize: 11, color: '#4b5563' },
-      data: families.concat(['Pareto 前沿（示意）'])
+      data: families
     },
     grid: { left: 70, right: 40, top: 80, bottom: 60 },
     xAxis: {
@@ -198,15 +198,16 @@ if (typeof echarts === 'undefined') {
       splitLine: { lineStyle: { color: '#f0f0f0' } }
     },
     yAxis: {
-      type: 'value', min: 70, max: 100,
-      name: '质量分（占位）',
-      nameLocation: 'middle', nameGap: 42, nameTextStyle: { fontSize: 12, color: '#4b5563' },
+      type: 'value', min: 60, max: 100,
+      name: 'SWE-bench Verified (%)',
+      nameLocation: 'middle', nameGap: 46, nameTextStyle: { fontSize: 12, color: '#4b5563' },
+      axisLabel: { formatter: v => v + '%' },
       splitLine: { lineStyle: { color: '#f0f0f0' } }
     },
     graphic: [
       {
         type: 'text',
-        left: '16%', top: '14%',
+        left: '16%', top: '13%',
         style: { text: '甜点区\n（高质低价）', fontSize: 11, fill: '#16a34a', fontWeight: 600, lineHeight: 16 }
       }
     ],
