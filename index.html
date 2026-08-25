@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OpenCode Go 模型性价比散点图（预览）</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background: #f6f7f9;
+    color: #1f2937;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  #chart { width: 100%; height: 620px; background: #fff; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  .note {
+    margin-top: 12px; font-size: 12px; color: #6b7280; line-height: 1.7;
+  }
+  .note b { color: #dc2626; }
+  table {
+    margin-top: 16px; width: 100%; border-collapse: collapse; background: #fff;
+    border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.08); font-size: 13px;
+  }
+  th, td { padding: 8px 10px; text-align: right; border-bottom: 1px solid #f0f0f0; white-space: nowrap; }
+  th { background: #fafafa; color: #374151; font-weight: 600; }
+  td:first-child, th:first-child { text-align: left; }
+  tr:last-child td { border-bottom: none; }
+  .tag { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+  .tag-60 { background: #eef2ff; color: #4338ca; }
+  .tag-15 { background: #fff7ed; color: #c2410c; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="chart"></div>
+  <div class="note">
+    <b>说明：</b>质量分为<b>占位示意值</b>（0–100），不代表任何真实评测成绩，待替换为 SWE-bench Verified / LMArena 数据后重算帕累托前沿。
+    请求数与单次成本根据官方文档估算口径推算（单次成本 = 档位额度 ÷ 月请求数，含峰值价口径）。实心圆 = $60 档，空心圆 = $15 档。
+  </div>
+  <table id="data-table">
+    <thead>
+      <tr>
+        <th>模型</th><th>家族</th><th>档位</th><th>月请求数</th><th>每 $1 请求数</th><th>单次成本 ($)</th><th>质量分（占位）</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<script>
+const FAMILY_COLOR = {
+  'Grok':     '#111827',
+  'OpenAI':   '#10A37F',
+  'DeepSeek': '#4D6BFE',
+  'GLM':      '#2563EB',
+  'Kimi':     '#00B87A',
+  'Qwen':     '#7C3AED',
+  'Hy3':      '#F59E0B',
+  'MiniMax':  '#F97316'
+};
+
+// 质量分 q 为占位示意值（0–100），非真实评测数据
+const RAW = [
+  { name: 'Grok 4.5',            family: 'Grok',     tier: 15, req: 600,   per1: 60,    cost: 0.02500, q: 94 },
+  { name: 'GPT 5.6 Luna',        family: 'OpenAI',   tier: 15, req: 10250, per1: 1025,  cost: 0.00146, q: 90 },
+  { name: 'DeepSeek V4 Pro',     family: 'DeepSeek', tier: 15, req: 5200,  per1: 520,   cost: 0.00288, q: 91 },
+  { name: 'DeepSeek V4 Flash',   family: 'DeepSeek', tier: 60, req: 37800, per1: 3780,  cost: 0.00159, q: 81 },
+  { name: 'GLM-5.2',             family: 'GLM',      tier: 60, req: 4300,  per1: 430,   cost: 0.01395, q: 86 },
+  { name: 'Kimi K2.7 Code',      family: 'Kimi',     tier: 60, req: 6750,  per1: 675,   cost: 0.00889, q: 85 },
+  { name: 'Qwen3.7 Max',         family: 'Qwen',     tier: 60, req: 1690,  per1: 169,   cost: 0.03550, q: 88 },
+  { name: 'Qwen3.7 Plus',        family: 'Qwen',     tier: 60, req: 21600, per1: 2160,  cost: 0.00278, q: 79 },
+  { name: 'Hy3',                 family: 'Hy3',      tier: 60, req: 21500, per1: 2150,  cost: 0.00279, q: 77 },
+  { name: 'MiniMax M3',          family: 'MiniMax',  tier: 60, req: 16000, per1: 1600,  cost: 0.00375, q: 75 }
+];
+
+// ---- 数据表 ----
+(function () {
+  const tb = document.querySelector('#data-table tbody');
+  RAW.forEach(m => {
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td>' + m.name + '</td>' +
+      '<td>' + m.family + '</td>' +
+      '<td><span class="tag ' + (m.tier === 60 ? 'tag-60' : 'tag-15') + '">$' + m.tier + '</span></td>' +
+      '<td>' + m.req.toLocaleString('en-US') + '</td>' +
+      '<td>' + m.per1.toLocaleString('en-US') + '</td>' +
+      '<td>$' + m.cost.toFixed(4) + '</td>' +
+      '<td>' + m.q + '（占位）</td>';
+    tb.appendChild(tr);
+  });
+})();
+
+// ---- 帕累托前沿：按成本升序，质量高于所有更便宜者即为前沿点 ----
+(function () {
+  const sorted = RAW.slice().sort((a, b) => a.cost - b.cost);
+  let bestQ = -Infinity;
+  window.FRONTIER = [];
+  sorted.forEach(m => {
+    if (m.q > bestQ) { bestQ = m.q; window.FRONTIER.push(m); }
+  });
+})();
+
+const families = Object.keys(FAMILY_COLOR);
+
+// ---- ECharts ----
+if (typeof echarts === 'undefined') {
+  document.getElementById('chart').innerHTML =
+    '<p style="padding:24px;color:#dc2626">ECharts CDN 加载失败（可能无网络），请检查后刷新。</p>';
+} else {
+  const chart = echarts.init(document.getElementById('chart'));
+
+  const mkData = f => RAW.filter(m => m.family === f).map(m => ({
+    value: [m.cost, m.q],
+    name: m.name,
+    family: m.family,
+    tier: m.tier,
+    req: m.req,
+    per1: m.per1,
+    cost: m.cost,
+    itemStyle: m.tier === 15
+      ? { color: '#ffffff', borderColor: FAMILY_COLOR[f], borderWidth: 2.5 }
+      : { color: FAMILY_COLOR[f] }
+  }));
+
+  const series = families.map(f => ({
+    name: f,
+    type: 'scatter',
+    data: mkData(f),
+    symbolSize: (v, p) => 7 + 10 * Math.sqrt((p.data.req || 600) / 600),
+    emphasis: { focus: 'series', itemStyle: { shadowBlur: 12, shadowColor: 'rgba(0,0,0,.25)' } },
+    label: {
+      show: true, position: 'top', formatter: p => p.data.name,
+      fontSize: 10, color: '#6b7280'
+    }
+  }));
+
+  const frontier = window.FRONTIER.map(m => [m.cost, m.q]);
+
+  series.push({
+    name: 'Pareto 前沿（示意）',
+    type: 'line',
+    data: frontier,
+    symbol: 'none',
+    lineStyle: { color: '#dc2626', width: 2, type: 'dashed' },
+    endLabel: { show: true, formatter: 'Pareto 前沿', color: '#dc2626', fontSize: 11, fontWeight: 600 },
+    tooltip: { show: false },
+    markLine: {
+      symbol: 'none', silent: true,
+      lineStyle: { color: '#9ca3af', type: 'dotted', width: 1 },
+      label: { color: '#9ca3af', fontSize: 10, formatter: '{b}' },
+      data: [
+        { xAxis: 0.00986, name: '平均成本线' },
+        { yAxis: 84.6, name: '平均质量线' }
+      ]
+    }
+  });
+
+  chart.setOption({
+    backgroundColor: '#fff',
+    title: {
+      text: 'OpenCode Go 模型性价比散点图（预览）',
+      subtext: 'X: 单次请求成本（对数轴） · Y: 质量分（占位示意） · 气泡大小: 月请求数 · 实心=$60档 / 空心=$15档',
+      left: 16, top: 12,
+      textStyle: { fontSize: 18, color: '#111827' },
+      subtextStyle: { fontSize: 11, color: '#9ca3af' }
+    },
+    tooltip: {
+      trigger: 'item',
+      confine: true,
+      formatter: p => {
+        if (!p.data || !p.data.name) return '';
+        const d = p.data;
+        return '<div style="font-size:12px;line-height:1.8;min-width:190px">' +
+          '<b style="font-size:13px">' + d.name + '</b>' +
+          '<span style="margin-left:6px;color:#9ca3af">' + d.family + '</span><br/>' +
+          '档位: <b>$' + d.tier + '</b> / 月请求数: <b>' + d.req.toLocaleString('en-US') + '</b><br/>' +
+          '每 $1 请求数: <b>' + d.per1.toLocaleString('en-US') + '</b><br/>' +
+          '单次成本: <b>$' + d.cost.toFixed(4) + '</b><br/>' +
+          '质量分(占位): <b>' + d.q + '</b><br/>' +
+          '<span style="color:#dc2626">※ 质量分为占位示意值</span></div>';
+      }
+    },
+    legend: {
+      top: 10, right: 16, type: 'scroll', icon: 'circle',
+      textStyle: { fontSize: 11, color: '#4b5563' },
+      data: families.concat(['Pareto 前沿（示意）'])
+    },
+    grid: { left: 70, right: 40, top: 80, bottom: 60 },
+    xAxis: {
+      type: 'log', logBase: 10,
+      min: 0.001, max: 0.06,
+      name: '单次请求成本 ($/请求)',
+      nameLocation: 'middle', nameGap: 34, nameTextStyle: { fontSize: 12, color: '#4b5563' },
+      axisLabel: { formatter: v => '$' + v.toFixed(3) },
+      splitLine: { lineStyle: { color: '#f0f0f0' } }
+    },
+    yAxis: {
+      type: 'value', min: 70, max: 100,
+      name: '质量分（占位）',
+      nameLocation: 'middle', nameGap: 42, nameTextStyle: { fontSize: 12, color: '#4b5563' },
+      splitLine: { lineStyle: { color: '#f0f0f0' } }
+    },
+    graphic: [
+      {
+        type: 'text',
+        left: '16%', top: '14%',
+        style: { text: '甜点区\n（高质低价）', fontSize: 11, fill: '#16a34a', fontWeight: 600, lineHeight: 16 }
+      }
+    ],
+    series: series
+  });
+
+  window.addEventListener('resize', () => chart.resize());
+}
+</script>
+</body>
+</html>
