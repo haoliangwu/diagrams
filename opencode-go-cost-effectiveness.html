@@ -43,7 +43,7 @@
     DeepSeek V4 Flash 72.4% 引自 benchmarklist 模型页（Preview 版，与 OrcaRouter 聚合口径 ≈79% 存在差异）；
     Qwen3.7 Plus 77.7% 引自 benchmarklist 模型页。各模型评测时的 reasoning 配置不同，分数不宜跨配置严格比较；请求数与单次成本按 OpenCode Go 官方估算口径推算（含峰值价口径）。实心圆 = $60 档，空心圆 = $15 档。
     <br/><b>结论：</b>帕累托前沿坍缩为<b>单点</b>——GPT 5.6 Luna 以最低档成本（$0.00146/次）取得最高分（93.0%），在 SWE-bench Verified 维度支配其余全部模型；DeepSeek V4 Flash 则以 3.7 倍请求量（37,800/月）提供 72.4% 的分数，是"量大管饱"的流量型选择。
-    <br/><b>Luna 渠道对比（日常同步 coding 场景，实付/折算口径）：</b>OpenCode Go 订阅 $10/月 ≈ 10,250 次（实付 $0.00098/次）；API 直连同模型同标价 $0.00146/次（$10 ≈ 6,830 次）；官方 ChatGPT 额度按"1x Plus ≈ $20 价值"折算：Plus $20→13,661 次、Pro 5x $100→68,306 次（1.0x 档）、Pro 20x $200→273,224 次（实付 $0.00073/次，官方最优倍率）。<b>注意：</b>官方 Plus/Pro 实际运行 Sol/Sol Pro 而非 Luna（Luna 仅 Free/Go 默认），此处仅为成本口径的等效折算（估算）；Batch 异步批处理不适用于日常 coding，已排除；请求量按 OpenCode Go 估算 token 模式（1,000 输入/50,000 缓存/220 输出）× 官方单价折算。来源：OpenAI API 定价、chatgpt.com/pricing、help.openai.com Pro tiers。
+    <br/><b>Luna 渠道对比（日常同步 coding 场景）：</b>图中 Luna 模型点即 OpenCode Go 订阅渠道（$10/月 ≈ 10,250 次；单次成本列取档位口径 $0.00146/次，实付 $0.00098/次见"每 $1（实付）"列）；官方 ChatGPT 额度按"1x Plus ≈ $20 价值"折算：Plus $20→13,661 次、Pro 5x $100→68,306 次（1.0x 档 $0.00146/次）、Pro 20x $200→273,224 次（2.0x 档 $0.00073/次）；API 直连同标价 $0.00146/次。<b>注意：</b>官方 Plus/Pro 实际运行 Sol/Sol Pro 而非 Luna（Luna 仅 Free/Go 默认），此处仅为成本口径的等效折算（估算）；Batch 异步批处理不适用于日常 coding，已排除；请求量按 OpenCode Go 估算 token 模式（1,000 输入/50,000 缓存/220 输出）× 官方单价折算。来源：OpenAI API 定价、chatgpt.com/pricing、help.openai.com Pro tiers。
   </div>
   <table id="data-table">
     <thead>
@@ -95,9 +95,8 @@ const RAW = [
       '<td>' + m.src + '</td>';
     tb.appendChild(tr);
   });
-  // Luna 渠道对比（实付/折算口径；模型行为 OpenCode Go 订阅渠道；仅日常同步 coding 场景，Batch 已排除）
+  // Luna 官方渠道对比（折算口径；OpenCode Go 订阅即上方模型行，不重复列出；仅日常同步 coding 场景，Batch 已排除）
   const CHANNELS = [
-    { name: 'Luna · OpenCode Go（实付）', tier: '订阅 $10', req: '10,250', per1: '1,025', cost: '$0.000976', src: 'OpenCode Go 官方估算' },
     { name: 'Luna · API 直连（按量）', tier: '按量', req: '6,830（$10 估算）', per1: '683', cost: '$0.00146', src: 'OpenAI 官方定价' },
     { name: 'Luna · ChatGPT Plus 1x（折算）', tier: '¥3,000≈$20', req: '13,661（估算）', per1: '683', cost: '$0.00146', src: '折算：1x≈$20 价值' },
     { name: 'Luna · ChatGPT Pro 5x（折算）', tier: '≈$100', req: '68,306（估算）', per1: '683', cost: '$0.00146', src: '折算：官方 5x 额度' },
@@ -194,13 +193,6 @@ if (typeof echarts === 'undefined') {
         itemStyle: { color: '#ffffff', borderColor: '#dc2626', borderWidth: 2.5 }
       },
       {
-        value: [0.000976, 93.0],
-        name: 'Luna · OpenCode Go 实付（$10）',
-        family: 'OpenCode Go', tier: '订阅', req: 10250, per1: 1025, cost: 0.000976, q: 93.0,
-        src: '$10 ÷ 10,250 次/月',
-        itemStyle: { color: '#ffffff', borderColor: '#10A37F', borderWidth: 2.5 }
-      },
-      {
         value: [0.001464, 93.0],
         name: 'Luna · 1.0x 档（API 直连 / Plus / Pro 5x）',
         family: 'OpenAI 官方', tier: '1.0x 倍率', req: 68306, per1: 683, cost: 0.001464, q: 93.0,
@@ -211,18 +203,8 @@ if (typeof echarts === 'undefined') {
     symbolSize: (v, p) => Math.min(95, 7 + 10 * Math.sqrt((p.data.req || 600) / 600)),
     label: {
       show: true,
-      position: p => {
-        const n = p.data.name;
-        if (n.indexOf('20x') >= 0) return 'top';
-        if (n.indexOf('OpenCode') >= 0) return 'bottom';
-        return 'right';
-      },
-      formatter: p => {
-        const n = p.data.name;
-        if (n.indexOf('20x') >= 0) return 'Pro 20x（$200）折算';
-        if (n.indexOf('OpenCode') >= 0) return 'OpenCode Go 实付 $10';
-        return '1.0x 档：API直连·Plus·5x';
-      },
+      position: p => (p.data.name.indexOf('20x') >= 0 ? 'top' : 'right'),
+      formatter: p => (p.data.name.indexOf('20x') >= 0 ? 'Pro 20x（$200）折算' : '1.0x 档：API直连·Plus·5x'),
       fontSize: 10, color: '#374151'
     },
     emphasis: { itemStyle: { shadowBlur: 12, shadowColor: 'rgba(0,0,0,.25)' } }
