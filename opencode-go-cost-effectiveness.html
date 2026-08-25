@@ -48,7 +48,7 @@
   <table id="data-table">
     <thead>
       <tr>
-        <th>模型</th><th>家族</th><th>档位</th><th>月请求数</th><th>每 $1 请求数</th><th>单次成本 ($)</th><th>SWE-bench Verified</th><th>分数来源</th>
+        <th>模型</th><th>家族</th><th>档位</th><th>月请求数</th><th>每 $1 请求数（实付）</th><th>单次成本 ($)</th><th>SWE-bench Verified</th><th>分数来源</th>
       </tr>
     </thead>
     <tbody></tbody>
@@ -99,9 +99,9 @@ const RAW = [
   const CHANNELS = [
     { name: 'Luna · OpenCode Go（实付）', tier: '订阅 $10', req: '10,250', per1: '1,025', cost: '$0.000976', src: 'OpenCode Go 官方估算' },
     { name: 'Luna · API 直连（按量）', tier: '按量', req: '6,830（$10 估算）', per1: '683', cost: '$0.00146', src: 'OpenAI 官方定价' },
-    { name: 'Luna · ChatGPT Plus 1x（折算）', tier: '¥3,000≈$20', req: '13,661（估算）', per1: '1,366', cost: '$0.00146', src: '折算：1x≈$20 价值' },
-    { name: 'Luna · ChatGPT Pro 5x（折算）', tier: '≈$100', req: '68,306（估算）', per1: '6,831', cost: '$0.00146', src: '折算：官方 5x 额度' },
-    { name: 'Luna · ChatGPT Pro 20x（折算）', tier: '≈$200', req: '273,224（估算）', per1: '27,322', cost: '$0.000732', src: '折算：官方 20x 额度' }
+    { name: 'Luna · ChatGPT Plus 1x（折算）', tier: '¥3,000≈$20', req: '13,661（估算）', per1: '683', cost: '$0.00146', src: '折算：1x≈$20 价值' },
+    { name: 'Luna · ChatGPT Pro 5x（折算）', tier: '≈$100', req: '68,306（估算）', per1: '683', cost: '$0.00146', src: '折算：官方 5x 额度' },
+    { name: 'Luna · ChatGPT Pro 20x（折算）', tier: '≈$200', req: '273,224（估算）', per1: '1,366', cost: '$0.000732', src: '折算：官方 20x 额度' }
   ];
   CHANNELS.forEach(c => {
     const tr = document.createElement('tr');
@@ -189,7 +189,7 @@ if (typeof echarts === 'undefined') {
       {
         value: [0.000732, 93.0],
         name: 'Luna · Pro 20x 折算（$200）',
-        family: 'OpenAI 官方', tier: 'Pro 20x 折算', req: 273224, per1: 27322, cost: 0.000732, q: 93.0,
+        family: 'OpenAI 官方', tier: 'Pro 20x 折算', req: 273224, per1: 1366, cost: 0.000732, q: 93.0,
         src: '折算：1x Plus≈$20 价值 ×20',
         itemStyle: { color: '#ffffff', borderColor: '#dc2626', borderWidth: 2.5 }
       },
@@ -203,7 +203,7 @@ if (typeof echarts === 'undefined') {
       {
         value: [0.001464, 93.0],
         name: 'Luna · 1.0x 档（API 直连 / Plus / Pro 5x）',
-        family: 'OpenAI 官方', tier: '1.0x 倍率', req: 68306, per1: 6831, cost: 0.001464, q: 93.0,
+        family: 'OpenAI 官方', tier: '1.0x 倍率', req: 68306, per1: 683, cost: 0.001464, q: 93.0,
         src: 'API 直连 $0.00146/次；Plus $20→13,661 次；Pro 5x $100→68,306 次',
         itemStyle: { color: '#ffffff', borderColor: '#6b7280', borderWidth: 2.5 }
       }
@@ -247,7 +247,7 @@ if (typeof echarts === 'undefined') {
           '<b style="font-size:13px">' + d.name + '</b>' +
           '<span style="margin-left:6px;color:#9ca3af">' + d.family + '</span><br/>' +
           '档位: <b>' + (typeof d.tier === 'number' ? '$' + d.tier : d.tier) + '</b> / 月请求数: <b>' + d.req.toLocaleString('en-US') + '</b><br/>' +
-          '每 $1 请求数: <b>' + d.per1.toLocaleString('en-US') + '</b><br/>' +
+          '每 $1（实付）请求数: <b>' + d.per1.toLocaleString('en-US') + '</b><br/>' +
           '单次成本: <b>$' + d.cost.toFixed(4) + '</b><br/>' +
           'SWE-bench Verified: <b>' + d.q.toFixed(1) + '%</b><br/>' +
           '<span style="color:#9ca3af">来源: ' + d.src + '</span></div>';
