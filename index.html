@@ -39,9 +39,9 @@
   <div id="chart"></div>
   <div class="note">
     <b>数据口径：</b>质量分 = SWE-bench Verified 通过率。主来源 <b>benchmarklist.com 官方榜单</b>（采样 2026-07-28）；
-    DeepSeek V4 Flash ≈79% 为 OrcaRouter 聚合值（DeepSeek 官方日志自报，2026-07-31）；Hy3 78% 引自界面新闻报道（2026-07）；
+    DeepSeek V4 Flash 72.4% 引自 benchmarklist 模型页（Preview 版，与 OrcaRouter 聚合口径 ≈79% 存在差异）；
     Qwen3.7 Plus 77.7% 引自 benchmarklist 模型页。各模型评测时的 reasoning 配置不同，分数不宜跨配置严格比较；请求数与单次成本按 OpenCode Go 官方估算口径推算（含峰值价口径）。实心圆 = $60 档，空心圆 = $15 档。
-    <br/><b>结论：</b>帕累托前沿坍缩为<b>单点</b>——GPT 5.6 Luna 以最低档成本（$0.00146/次）取得最高分（93.0%），在 SWE-bench Verified 维度支配其余全部模型；DeepSeek V4 Flash 则以 3.7 倍请求量（37,800/月）提供 79% 的接近分数，是"量大管饱"的流量型选择。
+    <br/><b>结论：</b>帕累托前沿坍缩为<b>单点</b>——GPT 5.6 Luna 以最低档成本（$0.00146/次）取得最高分（93.0%），在 SWE-bench Verified 维度支配其余全部模型；DeepSeek V4 Flash 则以 3.7 倍请求量（37,800/月）提供 72.4% 的分数，是"量大管饱"的流量型选择。
   </div>
   <table id="data-table">
     <thead>
@@ -61,7 +61,6 @@ const FAMILY_COLOR = {
   'GLM':      '#2563EB',
   'Kimi':     '#00B87A',
   'Qwen':     '#7C3AED',
-  'Hy3':      '#F59E0B',
   'MiniMax':  '#F97316'
 };
 
@@ -70,12 +69,11 @@ const RAW = [
   { name: 'Grok 4.5',            family: 'Grok',     tier: 15, req: 600,   per1: 60,    cost: 0.02500, q: 86.6, src: 'benchmarklist 榜单' },
   { name: 'GPT 5.6 Luna',        family: 'OpenAI',   tier: 15, req: 10250, per1: 1025,  cost: 0.00146, q: 93.0, src: 'benchmarklist 榜单', top: true },
   { name: 'DeepSeek V4 Pro',     family: 'DeepSeek', tier: 15, req: 5200,  per1: 520,   cost: 0.00288, q: 77.4, src: 'benchmarklist 榜单' },
-  { name: 'DeepSeek V4 Flash',   family: 'DeepSeek', tier: 60, req: 37800, per1: 3780,  cost: 0.00159, q: 79.0, src: 'OrcaRouter 聚合≈' },
+  { name: 'DeepSeek V4 Flash',   family: 'DeepSeek', tier: 60, req: 37800, per1: 3780,  cost: 0.00159, q: 72.4, src: 'benchmarklist 模型页' },
   { name: 'GLM-5.2',             family: 'GLM',      tier: 60, req: 4300,  per1: 430,   cost: 0.01395, q: 82.8, src: 'benchmarklist 榜单' },
   { name: 'Kimi K2.7 Code',      family: 'Kimi',     tier: 60, req: 6750,  per1: 675,   cost: 0.00889, q: 78.2, src: 'benchmarklist 榜单' },
   { name: 'Qwen3.7 Max',         family: 'Qwen',     tier: 60, req: 1690,  per1: 169,   cost: 0.03550, q: 68.8, src: 'benchmarklist 榜单' },
   { name: 'Qwen3.7 Plus',        family: 'Qwen',     tier: 60, req: 21600, per1: 2160,  cost: 0.00278, q: 77.7, src: 'benchmarklist 模型页' },
-  { name: 'Hy3',                 family: 'Hy3',      tier: 60, req: 21500, per1: 2150,  cost: 0.00279, q: 78.0, src: '界面新闻' },
   { name: 'MiniMax M3',          family: 'MiniMax',  tier: 60, req: 16000, per1: 1600,  cost: 0.00375, q: 75.0, src: 'benchmarklist 榜单' }
 ];
 
@@ -152,8 +150,8 @@ if (typeof echarts === 'undefined') {
       lineStyle: { color: '#9ca3af', type: 'dotted', width: 1 },
       label: { color: '#9ca3af', fontSize: 10, formatter: '{b}' },
       data: [
-        { xAxis: 0.00986, name: '平均成本线' },
-        { yAxis: 79.7, name: '平均质量线 79.7%' }
+        { xAxis: 0.01064, name: '平均成本线' },
+        { yAxis: 79.1, name: '平均质量线 79.1%' }
       ]
     } : undefined
   }));
