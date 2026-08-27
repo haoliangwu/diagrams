@@ -1,0 +1,739 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dsh 上下文压缩机制</title>
+<style>
+  /* ── tokens ─────────────────────────────────────────── */
+  :root {
+    --ink: #141a26;
+    --paper: #f6f7f9;
+    --rule: #dfe3ea;
+    --rule-strong: #c3cad6;
+    --text: #232a38;
+    --text-dim: #5b6472;
+    --text-faint: #8a93a2;
+    --amber: #c2720a;
+    --amber-soft: #f3e3c8;
+    --green: #167a4f;
+    --green-soft: #dcefe4;
+    --gray: #7c8494;
+    --gray-soft: #e9ebef;
+    --blue: #2b5fd9;
+    --blue-soft: #dde6fb;
+    --violet: #6d4fc4;
+    --violet-soft: #e6e1f6;
+    --shadow: 0 1px 2px rgba(20,26,38,.06), 0 4px 14px rgba(20,26,38,.05);
+    --radius: 10px;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #10151f;
+      --paper: #131924;
+      --rule: #263044;
+      --rule-strong: #37435c;
+      --text: #d7dde8;
+      --text-dim: #97a1b3;
+      --text-faint: #6b7689;
+      --amber: #e8a43c;
+      --amber-soft: #3a2f1c;
+      --green: #4cc28a;
+      --green-soft: #163326;
+      --gray: #8f99ab;
+      --gray-soft: #232c3c;
+      --blue: #6f9af0;
+      --blue-soft: #1c2942;
+      --violet: #a88ff0;
+      --violet-soft: #2a2440;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 4px 16px rgba(0,0,0,.3);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink: #10151f;
+    --paper: #131924;
+    --rule: #263044;
+    --rule-strong: #37435c;
+    --text: #d7dde8;
+    --text-dim: #97a1b3;
+    --text-faint: #6b7689;
+    --amber: #e8a43c;
+    --amber-soft: #3a2f1c;
+    --green: #4cc28a;
+    --green-soft: #163326;
+    --gray: #8f99ab;
+    --gray-soft: #232c3c;
+    --blue: #6f9af0;
+    --blue-soft: #1c2942;
+    --violet: #a88ff0;
+    --violet-soft: #2a2440;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 4px 16px rgba(0,0,0,.3);
+  }
+  :root[data-theme="light"] {
+    --ink: #141a26;
+    --paper: #f6f7f9;
+    --rule: #dfe3ea;
+    --rule-strong: #c3cad6;
+    --text: #232a38;
+    --text-dim: #5b6472;
+    --text-faint: #8a93a2;
+    --amber: #c2720a;
+    --amber-soft: #f3e3c8;
+    --green: #167a4f;
+    --green-soft: #dcefe4;
+    --gray: #7c8494;
+    --gray-soft: #e9ebef;
+    --blue: #2b5fd9;
+    --blue-soft: #dde6fb;
+    --violet: #6d4fc4;
+    --violet-soft: #e6e1f6;
+    --shadow: 0 1px 2px rgba(20,26,38,.06), 0 4px 14px rgba(20,26,38,.05);
+  }
+
+  /* ── base ───────────────────────────────────────────── */
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 48px 28px 72px; }
+
+  /* ── header ─────────────────────────────────────────── */
+  .masthead { margin-bottom: 36px; }
+  .eyebrow {
+    font-size: 11.5px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    font-weight: 600;
+    margin-bottom: 10px;
+  }
+  h1 {
+    font-size: clamp(26px, 3.4vw, 34px);
+    margin: 0 0 8px;
+    letter-spacing: -.02em;
+    line-height: 1.15;
+    text-wrap: balance;
+  }
+  .subtitle { color: var(--text-dim); max-width: 62ch; margin: 0; }
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 14px 22px;
+    margin-top: 18px; padding-top: 16px;
+    border-top: 1px solid var(--rule);
+    font-size: 12.5px; color: var(--text-dim);
+  }
+  .legend-item { display: inline-flex; align-items: center; gap: 7px; }
+  .swatch { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+
+  /* ── section ────────────────────────────────────────── */
+  section { margin-bottom: 44px; }
+  .sec-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+  .sec-num {
+    font-family: var(--mono); font-size: 12px; font-weight: 700;
+    color: var(--amber); letter-spacing: .06em;
+  }
+  .sec-title { font-size: 18px; font-weight: 650; letter-spacing: -.01em; margin: 0; }
+  .sec-note { color: var(--text-faint); font-size: 13px; margin-left: auto; }
+
+  /* ── trigger lanes ──────────────────────────────────── */
+  .lanes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .lane {
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    background: var(--paper);
+    box-shadow: var(--shadow);
+    padding: 16px 18px 18px;
+    cursor: pointer;
+    position: relative;
+    transition: border-color .15s ease, transform .15s ease;
+  }
+  .lane:hover { border-color: var(--rule-strong); transform: translateY(-1px); }
+  .lane.active { border-color: var(--amber); box-shadow: 0 0 0 2px var(--amber-soft), var(--shadow); }
+  .lane-kicker {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 11px; font-weight: 700;
+    letter-spacing: .08em; text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+  .lane-kicker .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .lane h3 { margin: 0 0 6px; font-size: 16px; font-weight: 700; letter-spacing: -.01em; }
+  .lane .when { font-size: 12.5px; color: var(--text-dim); margin: 0 0 12px; }
+  .lane .knobs { display: flex; flex-wrap: wrap; gap: 6px; }
+  .knob {
+    font-family: var(--mono); font-size: 11px;
+    padding: 2px 8px; border-radius: 999px;
+    border: 1px solid var(--rule);
+    color: var(--text-dim);
+    background: color-mix(in srgb, var(--paper) 60%, white 40%);
+  }
+  :root[data-theme="dark"] .knob, :root[data-theme="dark"] .knob {
+    background: color-mix(in srgb, var(--paper) 60%, black 40%);
+  }
+  .knob b { color: var(--text); font-weight: 650; }
+  .lane.active .knob { border-color: color-mix(in srgb, var(--amber) 45%, var(--rule)); }
+
+  /* ── converge strip ─────────────────────────────────── */
+  .converge { display: flex; flex-direction: column; align-items: center; margin: 4px 0 22px; }
+  .funnel { position: relative; width: 260px; height: 68px; }
+  .funnel span { position: absolute; bottom: 0; left: 50%; width: 2.5px; background: var(--rule-strong); transform-origin: bottom center; border-radius: 1px; }
+  .funnel .f-l { height: 66px; transform: rotate(32deg) translateX(-1.5px); }
+  .funnel .f-m { height: 42px; }
+  .funnel .f-r { height: 66px; transform: rotate(-32deg) translateX(1.5px); }
+  .converge-line { width: 2.5px; height: 34px; background: var(--rule-strong); }
+  .converge-label {
+    font-size: 11px; color: var(--text-faint); letter-spacing: .1em;
+    text-transform: uppercase; margin-top: 8px;
+  }
+
+  /* ── pipeline ───────────────────────────────────────── */
+  .pipeline {
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    background: var(--paper);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .pipe-head {
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--rule);
+    background: color-mix(in srgb, var(--paper) 70%, var(--blue-soft) 30%);
+    display: flex; align-items: baseline; gap: 10px;
+  }
+  .pipe-head .mono-name { font-family: var(--mono); font-size: 12.5px; color: var(--blue); font-weight: 650; }
+  .pipe-head .desc { font-size: 12.5px; color: var(--text-dim); }
+  .steps { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0; }
+  .step {
+    padding: 14px 12px 16px;
+    border-right: 1px solid var(--rule);
+    display: flex; flex-direction: column; gap: 6px;
+    position: relative;
+    transition: background .15s ease;
+  }
+  .step:last-child { border-right: none; }
+  .step .num {
+    font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--text-faint);
+  }
+  .step .name { font-size: 13px; font-weight: 650; line-height: 1.3; }
+  .step .detail { font-size: 11.5px; color: var(--text-dim); line-height: 1.45; }
+  .step .used-by { margin-top: auto; display: flex; gap: 4px; flex-wrap: wrap; }
+  .step .used-by .tag {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .04em;
+    padding: 1px 6px; border-radius: 4px; border: 1px solid var(--rule);
+    color: var(--text-faint);
+  }
+  .step.hot { background: var(--amber-soft); }
+  .step.hot .num { color: var(--amber); }
+  .step.hot .name { color: color-mix(in srgb, var(--amber) 60%, var(--text)); }
+  .step.dim { opacity: .45; }
+
+  /* ── log mutation ───────────────────────────────────── */
+  .loggrid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+  .logpanel { border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper); box-shadow: var(--shadow); overflow: hidden; }
+  .logpanel .panel-head {
+    padding: 10px 14px; border-bottom: 1px solid var(--rule);
+    display: flex; align-items: baseline; gap: 8px;
+  }
+  .logpanel .panel-head .t { font-size: 13.5px; font-weight: 650; }
+  .logpanel .panel-head .sub { font-size: 11.5px; color: var(--text-faint); margin-left: auto; font-family: var(--mono); }
+  .logentries { padding: 8px 0; }
+  .entry {
+    display: grid; grid-template-columns: 44px 1fr 110px;
+    gap: 8px; align-items: baseline;
+    padding: 5px 14px;
+    font-family: var(--mono); font-size: 11.5px;
+    border-left: 3px solid transparent;
+    transition: background .12s ease;
+  }
+  .entry:hover { background: color-mix(in srgb, var(--paper) 80%, var(--rule) 20%); }
+  .entry .seq { color: var(--text-faint); text-align: right; font-variant-numeric: tabular-nums; }
+  .entry .ev { color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .entry .role { text-align: right; font-size: 10.5px; }
+  .entry .role .chip {
+    padding: 1px 7px; border-radius: 4px; font-size: 10px; letter-spacing: .03em;
+    display: inline-block; white-space: nowrap;
+  }
+  .chip-retain { background: var(--green-soft); color: var(--green); }
+  .chip-shadow { background: var(--gray-soft); color: var(--gray); text-decoration: line-through; }
+  .chip-checkpoint { background: var(--amber-soft); color: var(--amber); }
+  .chip-lock { background: var(--violet-soft); color: var(--violet); }
+  .entry.shadowed { opacity: .55; }
+  .entry.shadowed .ev { text-decoration: line-through; text-decoration-color: var(--text-faint); }
+  .entry.shadowed { border-left-color: var(--gray); }
+  .entry.retained { border-left-color: var(--green); }
+  .entry.checkpoint { border-left-color: var(--amber); background: var(--amber-soft); }
+  .entry.lock { border-left-color: var(--violet); }
+  .surface-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 14px; border-top: 1px dashed var(--rule);
+    font-size: 11.5px; color: var(--text-dim);
+  }
+  .surface-bar .model-visible { font-weight: 650; color: var(--green); }
+  .surface-bar .seqs { font-family: var(--mono); color: var(--text); }
+  .replace-arc {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    overflow: visible;
+  }
+  .logentries { position: relative; padding: 8px 0; }
+
+  /* ── config table ───────────────────────────────────── */
+  .cfgwrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: var(--radius); box-shadow: var(--shadow); background: var(--paper); }
+  table.cfg { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 720px; }
+  table.cfg th, table.cfg td { padding: 9px 14px; text-align: left; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  table.cfg thead th {
+    font-size: 11px; letter-spacing: .09em; text-transform: uppercase;
+    color: var(--text-faint); font-weight: 650;
+    background: color-mix(in srgb, var(--paper) 85%, var(--rule) 15%);
+  }
+  table.cfg tr:last-child td { border-bottom: none; }
+  table.cfg td.k { font-family: var(--mono); font-size: 12px; white-space: nowrap; }
+  table.cfg td.v { font-family: var(--mono); font-size: 12px; white-space: nowrap; }
+  table.cfg td.v .hi { color: var(--amber); font-weight: 700; }
+  table.cfg tr.row-active { background: var(--amber-soft); }
+  table.cfg tr.row-dim { opacity: .5; }
+  table.cfg .fixed { color: var(--violet); }
+  table.cfg .opt-note { color: var(--text-faint); font-size: 11.5px; }
+
+  /* ── footer ─────────────────────────────────────────── */
+  .footnote { font-size: 12px; color: var(--text-faint); border-top: 1px solid var(--rule); padding-top: 14px; margin-top: 40px; line-height: 1.7; }
+  .footnote code { font-family: var(--mono); font-size: 11px; background: var(--gray-soft); padding: 1px 5px; border-radius: 4px; }
+
+  /* ── responsive ─────────────────────────────────────── */
+  @media (max-width: 900px) {
+    .lanes { grid-template-columns: 1fr; }
+    .steps { grid-template-columns: 1fr; }
+    .step { border-right: none; border-bottom: 1px solid var(--rule); }
+    .step:last-child { border-bottom: none; }
+    .loggrid { grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+    html { scroll-behavior: auto; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="eyebrow">DeepSeek Harness · 内部机制</div>
+    <h1>上下文压缩机制</h1>
+    <p class="subtitle">
+      三条触发路径（手动 <code>/compact</code>、step 压力、context 溢出恢复）汇入同一条共享事务管线，
+      在 append-only 会话日志上以「遮蔽」而非「删除」改写模型可见历史。
+    </p>
+    <div class="legend">
+      <span class="legend-item"><span class="swatch" style="background:var(--amber)"></span>压缩动作 / checkpoint</span>
+      <span class="legend-item"><span class="swatch" style="background:var(--green)"></span>保留节点（模型可见）</span>
+      <span class="legend-item"><span class="swatch" style="background:var(--gray)"></span>遮蔽节点（日志仍在，模型不可见）</span>
+      <span class="legend-item"><span class="swatch" style="background:var(--violet)"></span>事务锁 / 生命周期</span>
+      <span class="legend-item"><span class="swatch" style="background:var(--blue)"></span>LLM 摘要调用</span>
+    </div>
+  </header>
+
+  <!-- ── 1 · 触发路径 ─────────────────────────────────── -->
+  <section id="triggers">
+    <div class="sec-head">
+      <span class="sec-num">01</span>
+      <h2 class="sec-title">触发路径</h2>
+      <span class="sec-note">点击卡片高亮对应事务步骤与配置</span>
+    </div>
+    <div class="lanes" id="lanes">
+
+      <div class="lane" data-lane="manual" tabindex="0" role="button" aria-pressed="false">
+        <div class="lane-kicker"><span class="dot" style="background:var(--amber)"></span>手动</div>
+        <h3><code>/compact</code> 命令</h3>
+        <p class="when">用户输入命令 → <code>compactNow()</code>。要求 agent <b>空闲</b>（<code>runMaintenance</code>），有活/队列即 <code>busy</code> 拒绝。</p>
+        <div class="knobs">
+          <span class="knob">retainTokens <b>= 0</b></span>
+          <span class="knob">stability <b>selected-span</b></span>
+          <span class="knob">flush <b>显式 checkpoint</b></span>
+        </div>
+      </div>
+
+      <div class="lane" data-lane="pressure" tabindex="0" role="button" aria-pressed="false">
+        <div class="lane-kicker"><span class="dot" style="background:var(--green)"></span>自动 · 压力</div>
+        <h3><code>agent/pre-step</code></h3>
+        <p class="when">每步前 <code>compactIfNeeded('pressure')</code>：tokenMeter 度量 → 超阈值才动 → 可选 <code>toolResultPruner</code> 无模型裁剪 → 再测 → 仍超才摘要。</p>
+        <div class="knobs">
+          <span class="knob">thresholdRatio <b>= 0.8</b></span>
+          <span class="knob">retainRatio <b>= 0.16</b></span>
+          <span class="knob">compactionRetries <b>= 1</b></span>
+          <span class="knob">stability <b>whole-surface</b></span>
+        </div>
+      </div>
+
+      <div class="lane" data-lane="overflow" tabindex="0" role="button" aria-pressed="false">
+        <div class="lane-kicker"><span class="dot" style="background:var(--blue)"></span>自动 · 溢出恢复</div>
+        <h3><code>agent/request-error</code></h3>
+        <p class="when">provider 返回 <code>CONTEXT_WINDOW_EXCEEDED</code> → 强制一次有效压缩（<code>retainTokens=0</code>）→ 成功返回 <code>{ kind: 'retry' }</code>，从替换后的 surface 重试。</p>
+        <div class="knobs">
+          <span class="knob">maxOverflowRetries <b>= 1</b></span>
+          <span class="knob">retainTokens <b>= 0</b></span>
+          <span class="knob">阈值 <b>绕过</b></span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── 2 · 共享事务 ─────────────────────────────────── -->
+  <div class="converge" aria-hidden="true">
+    <div class="funnel">
+      <span class="f-l"></span><span class="f-m"></span><span class="f-r"></span>
+    </div>
+    <div class="converge-line"></div>
+    <div class="converge-label">全部汇入 · 同一事务</div>
+  </div>
+
+  <section id="pipeline">
+    <div class="sec-head">
+      <span class="sec-num">02</span>
+      <h2 class="sec-title">共享事务管线</h2>
+      <span class="sec-note"><code>compactSurfaceRegion()</code> · <code>compaction-basic/src/region.ts</code></span>
+    </div>
+    <div class="pipeline">
+      <div class="pipe-head">
+        <span class="mono-name">session.append(&hellip;) · surfaceOp: replace</span>
+        <span class="desc">日志 append-only，任何「删除」都是一条新的遮蔽事件</span>
+      </div>
+      <div class="steps" id="steps">
+        <div class="step" data-usedby="manual pressure overflow">
+          <span class="num">①</span>
+          <span class="name">validateSurfaceRegion</span>
+          <span class="detail">start/end 必须在 surface 上、顺序对、tool 配对平衡（不拆 call/result 对）</span>
+          <span class="used-by"><span class="tag">三条路径共用</span></span>
+        </div>
+        <div class="step" data-usedby="manual pressure overflow">
+          <span class="num">②</span>
+          <span class="name">compaction/start</span>
+          <span class="detail">持久化锁。崩溃后 unmatched start 可检测；新压缩被拒</span>
+          <span class="used-by"><span class="tag">三条路径共用</span></span>
+        </div>
+        <div class="step" data-usedby="manual pressure overflow">
+          <span class="num">③</span>
+          <span class="name">prepareCompaction</span>
+          <span class="detail">重放选中区 → SummarizationInput（自己的 system + tools + messages 前缀）</span>
+          <span class="used-by"><span class="tag">三条路径共用</span></span>
+        </div>
+        <div class="step" data-usedby="manual pressure overflow">
+          <span class="num">④</span>
+          <span class="name">summarizeCompaction</span>
+          <span class="detail">一次 one-shot <code>ctx.llm.stream()</code>；前缀复用对话 → provider KV cache 不失效</span>
+          <span class="used-by"><span class="tag">三条路径共用</span></span>
+        </div>
+        <div class="step" data-usedby="manual pressure overflow">
+          <span class="num">⑤</span>
+          <span class="name">assertStable</span>
+          <span class="detail">摘要期间 surface 变化 → SurfaceChangedError。手动=selected-span；自动=whole-surface</span>
+          <span class="used-by"><span class="tag">三条路径共用</span></span>
+        </div>
+        <div class="step" data-usedby="manual pressure overflow">
+          <span class="num">⑥</span>
+          <span class="name">commitCompactionBody</span>
+          <span class="detail">append checkpoint + <code>surfaceOp: {op:'replace', start, end}</code> + sourceEventSeqs 覆盖每个遮蔽节点</span>
+          <span class="used-by"><span class="tag">三条路径共用</span></span>
+        </div>
+        <div class="step" data-usedby="manual pressure overflow">
+          <span class="num">⑦</span>
+          <span class="name">compaction/end · flush</span>
+          <span class="detail">解锁。失败留 error 标记。手动路径显式 <code>ctx.sessions.flush()</code> 落盘</span>
+          <span class="used-by"><span class="tag">三条路径共用</span></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 3 · 日志遮蔽 ─────────────────────────────────── -->
+  <section id="log">
+    <div class="sec-head">
+      <span class="sec-num">03</span>
+      <h2 class="sec-title">日志遮蔽效果</h2>
+      <span class="sec-note">以 <code>/compact</code>（retainTokens=0）为例</span>
+    </div>
+    <div class="loggrid">
+
+      <!-- before -->
+      <div class="logpanel">
+        <div class="panel-head">
+          <span class="t">压缩前</span>
+          <span class="sub">surface · 5 节点</span>
+        </div>
+        <div class="logentries">
+          <div class="entry retained">
+            <span class="seq">1</span><span class="ev">user/message</span><span class="role"><span class="chip chip-retain">保留</span></span>
+          </div>
+          <div class="entry retained">
+            <span class="seq">2</span><span class="ev">assistant/message</span><span class="role"><span class="chip chip-retain">保留</span></span>
+          </div>
+          <div class="entry retained">
+            <span class="seq">3</span><span class="ev">tool/call · bash</span><span class="role"><span class="chip chip-retain">保留</span></span>
+          </div>
+          <div class="entry retained">
+            <span class="seq">4</span><span class="ev">tool/result</span><span class="role"><span class="chip chip-retain">保留</span></span>
+          </div>
+          <div class="entry retained">
+            <span class="seq">5</span><span class="ev">assistant/message · 最终回答</span><span class="role"><span class="chip chip-retain">保留</span></span>
+          </div>
+        </div>
+        <div class="surface-bar">
+          <span class="model-visible">模型可见</span>
+          <span class="seqs">[1, 2, 3, 4, 5]</span>
+        </div>
+      </div>
+
+      <!-- after -->
+      <div class="logpanel" id="afterPanel">
+        <div class="panel-head">
+          <span class="t">压缩后</span>
+          <span class="sub">log 9 节点 · surface 2 节点</span>
+        </div>
+        <div class="logentries" id="afterEntries">
+          <div class="entry shadowed">
+            <span class="seq">1</span><span class="ev">user/message</span><span class="role"><span class="chip chip-shadow">遮蔽</span></span>
+          </div>
+          <div class="entry shadowed">
+            <span class="seq">2</span><span class="ev">assistant/message</span><span class="role"><span class="chip chip-shadow">遮蔽</span></span>
+          </div>
+          <div class="entry shadowed">
+            <span class="seq">3</span><span class="ev">tool/call · bash</span><span class="role"><span class="chip chip-shadow">遮蔽</span></span>
+          </div>
+          <div class="entry shadowed">
+            <span class="seq">4</span><span class="ev">tool/result</span><span class="role"><span class="chip chip-shadow">遮蔽</span></span>
+          </div>
+          <div class="entry retained">
+            <span class="seq">5</span><span class="ev">assistant/message · 最终回答</span><span class="role"><span class="chip chip-retain">保留</span></span>
+          </div>
+          <div class="entry lock">
+            <span class="seq">6</span><span class="ev">compaction/start</span><span class="role"><span class="chip chip-lock">锁</span></span>
+          </div>
+          <div class="entry lock">
+            <span class="seq">7</span><span class="ev">compaction/summary</span><span class="role"><span class="chip chip-lock">摘要</span></span>
+          </div>
+          <div class="entry checkpoint">
+            <span class="seq">8</span><span class="ev">user/message · checkpoint</span><span class="role"><span class="chip chip-checkpoint">替换</span></span>
+          </div>
+          <div class="entry lock">
+            <span class="seq">9</span><span class="ev">compaction/end</span><span class="role"><span class="chip chip-lock">解锁</span></span>
+          </div>
+          <svg class="replace-arc" id="replaceArc" aria-hidden="true"></svg>
+        </div>
+        <div class="surface-bar">
+          <span class="model-visible">模型可见</span>
+          <span class="seqs">[8, 5] &nbsp;·&nbsp; checkpoint + 最终回答</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── 4 · 配置默认值 ───────────────────────────────── -->
+  <section id="config">
+    <div class="sec-head">
+      <span class="sec-num">04</span>
+      <h2 class="sec-title">配置默认值</h2>
+      <span class="sec-note"><code>compaction-basic/src/config.ts</code> · 点击触发卡联动高亮</span>
+    </div>
+    <div class="cfgwrap">
+      <table class="cfg" id="cfg">
+        <thead>
+          <tr><th>字段</th><th>默认值</th><th>作用于</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+          <tr data-lane="pressure">
+            <td class="k">thresholdRatio</td>
+            <td class="v"><span class="hi">0.8</span></td>
+            <td>pressure</td>
+            <td>压力阈值 = contextWindow × 0.8，超了才触发自动压缩</td>
+          </tr>
+          <tr data-lane="pressure">
+            <td class="k">retainRatio</td>
+            <td class="v"><span class="hi">0.16</span></td>
+            <td>pressure</td>
+            <td>保留尾部 = contextWindow × 0.16，之前全部压成摘要</td>
+          </tr>
+          <tr data-lane="pressure">
+            <td class="k">retainTokens</td>
+            <td class="v">undefined</td>
+            <td>pressure / manual</td>
+            <td>未设走 retainRatio；设了则固定 token 数（二选一）。manual 路径写死 0</td>
+          </tr>
+          <tr data-lane="pressure">
+            <td class="k">summarizationProvider / Model</td>
+            <td class="v">''（空）</td>
+            <td>三条路径</td>
+            <td>空 = 用会话当前路由的 provider/model</td>
+          </tr>
+          <tr data-lane="pressure">
+            <td class="k">maxTokens</td>
+            <td class="v"><span class="hi">8192</span></td>
+            <td>三条路径</td>
+            <td>摘要调用输出上限</td>
+          </tr>
+          <tr data-lane="pressure">
+            <td class="k">compactionRetries</td>
+            <td class="v"><span class="hi">1</span></td>
+            <td>pressure</td>
+            <td>压一次后仍超阈值，最多再压 1 次（共 2 次尝试）</td>
+          </tr>
+          <tr data-lane="overflow">
+            <td class="k">maxOverflowRetries</td>
+            <td class="v"><span class="hi">1</span></td>
+            <td>overflow</td>
+            <td>context-overflow 恢复最多重试 1 次</td>
+          </tr>
+          <tr data-lane="pressure">
+            <td class="k">auto</td>
+            <td class="v"><span class="hi">true</span></td>
+            <td>pressure / overflow</td>
+            <td>开关 pre-step 压力 + overflow 恢复的自动注册</td>
+          </tr>
+          <tr data-lane="pressure">
+            <td class="k">modelPolicies</td>
+            <td class="v">[]</td>
+            <td>pressure</td>
+            <td>按 {provider, model} 精确覆盖默认值；未覆盖字段继承顶层</td>
+          </tr>
+          <tr>
+            <td class="k">contextWindow <span class="fixed">●</span></td>
+            <td class="v">adapter 定义</td>
+            <td>—</td>
+            <td>不是 compaction 配置：llm 层 model 属性，compaction 只读（<code>resolveModelInfo</code>）</td>
+          </tr>
+          <tr>
+            <td class="k">CONTEXT_WINDOW_EXCEEDED <span class="fixed">●</span></td>
+            <td class="v">写死</td>
+            <td>overflow</td>
+            <td>provider 协议常量（HarnessError code），非配置项</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="footnote">
+      <span class="fixed">●</span> 固定项：非 compaction 配置。<br>
+      配置位置：<code>cordis.patch.yml</code> 中 compaction-basic 插件行的 <code>config:</code>（顶层默认 + <code>modelPolicies[]</code> 两级）。<br>
+      来源：<code>packages/compaction/compaction-basic/src/config.ts</code> · <code>index.ts</code> · <code>region.ts</code> · <code>packages/compaction/command-compact/src/index.ts</code> · <code>packages/compaction/compaction/src/index.ts</code>
+    </p>
+  </section>
+
+</div>
+
+<script>
+(function () {
+  var lanes = document.querySelectorAll('.lane')
+  var steps = document.querySelectorAll('#steps .step')
+  var rows = document.querySelectorAll('#cfg tbody tr[data-lane]')
+  var active = null
+
+  function clearAll() {
+    lanes.forEach(function (l) { l.classList.remove('active'); l.setAttribute('aria-pressed', 'false') })
+    steps.forEach(function (s) { s.classList.remove('hot', 'dim') })
+    rows.forEach(function (r) { r.classList.remove('row-active', 'row-dim') })
+  }
+
+  function showLane(name) {
+    clearAll()
+    if (name === null) return
+    var lane = document.querySelector('.lane[data-lane="' + name + '"]')
+    if (lane) { lane.classList.add('active'); lane.setAttribute('aria-pressed', 'true') }
+    steps.forEach(function (s) {
+      var by = (s.getAttribute('data-usedby') || '').split(' ')
+      if (by.indexOf(name) !== -1) { s.classList.add('hot') }
+    })
+    rows.forEach(function (r) {
+      if (r.getAttribute('data-lane') === name) { r.classList.add('row-active') }
+      else { r.classList.add('row-dim') }
+    })
+  }
+
+  lanes.forEach(function (lane) {
+    function toggle() {
+      var name = lane.getAttribute('data-lane')
+      if (active === name) { active = null; showLane(null) }
+      else { active = name; showLane(name) }
+    }
+    lane.addEventListener('click', toggle)
+    lane.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle() }
+    })
+  })
+
+  // ── replace-arc: measure entry rows and draw a bracket+arrow overlay ──
+  function drawReplaceArc() {
+    var svg = document.getElementById('replaceArc')
+    var entries = document.querySelectorAll('#afterEntries .entry')
+    if (!svg || entries.length < 9) return
+    var host = document.getElementById('afterEntries')
+    var hostRect = host.getBoundingClientRect()
+    var top = hostRect.top
+    // Bracket spans shadowed seq 1..4, arrow lands on seq 8 (checkpoint).
+    var y1 = entries[0].getBoundingClientRect().top - top + entries[0].offsetHeight / 2
+    var y4 = entries[3].getBoundingClientRect().top - top + entries[3].offsetHeight / 2
+    var y8 = entries[7].getBoundingClientRect().top - top + entries[7].offsetHeight / 2
+    var pad = 14
+    var bx = pad + 6
+    var mid = (y1 + y4) / 2
+    var x1 = 20, y1a = y1, x2 = 44, y2 = y4
+    var ctrl = 34
+    var labelX = pad + 6
+    var labelY = Math.max(6, y1 - 12)
+
+    var d = ''
+    // vertical bracket left of shadowed rows 1..4
+    d += 'M ' + bx + ' ' + y1 + ' L ' + bx + ' ' + y4
+    d += ' M ' + bx + ' ' + y1 + ' L ' + (bx + 8) + ' ' + y1
+    d += ' M ' + bx + ' ' + y4 + ' L ' + (bx + 8) + ' ' + y4
+    // curved connector from bracket mid to checkpoint row 8
+    d += ' M ' + bx + ' ' + mid
+    d += ' C ' + (bx + ctrl) + ' ' + mid + ', ' + (bx + ctrl) + ' ' + y8 + ', ' + (bx + 30) + ' ' + y8
+    // arrowhead at end of connector
+    var ax = bx + 30, ay = y8
+    d += ' M ' + (ax - 7) + ' ' + (ay - 5) + ' L ' + ax + ' ' + ay + ' L ' + (ax - 7) + ' ' + (ay + 5)
+
+    svg.setAttribute('viewBox', '0 0 ' + hostRect.width + ' ' + hostRect.height)
+    svg.innerHTML = ''
+    var g = document.createElementNS('http://www.w3.org/2000/svg', 'g')
+    g.setAttribute('fill', 'none')
+    g.setAttribute('stroke', 'var(--amber)')
+    g.setAttribute('stroke-width', '1.5')
+    var dash = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+    dash.setAttribute('d', d)
+    dash.setAttribute('stroke-dasharray', '4 3')
+    g.appendChild(dash)
+    var label = document.createElementNS('http://www.w3.org/2000/svg', 'text')
+    label.setAttribute('x', labelX)
+    label.setAttribute('y', labelY)
+    label.setAttribute('font-family', 'var(--mono)')
+    label.setAttribute('font-size', '10')
+    label.setAttribute('fill', 'var(--amber)')
+    label.textContent = 'seq 8 replace [1..4]'
+    g.appendChild(label)
+    svg.appendChild(g)
+  }
+
+  var arcTimer = null
+  function scheduleArc() {
+    if (arcTimer) clearTimeout(arcTimer)
+    arcTimer = setTimeout(drawReplaceArc, 50)
+  }
+  window.addEventListener('resize', scheduleArc)
+  window.addEventListener('load', drawReplaceArc)
+  if (document.readyState !== 'loading') drawReplaceArc()
+  // Re-draw after lane highlight changes any layout (safe, cheap).
+  var mo = new MutationObserver(scheduleArc)
+  mo.observe(document.body, { attributes: true, childList: true, subtree: true })
+})();
+</script>
+</body>
+</html>
