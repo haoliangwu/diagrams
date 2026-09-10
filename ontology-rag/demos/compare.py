@@ -90,34 +90,77 @@ def render_text(rows, stats) -> str:
     return "\n".join(out)
 
 
+def _quote(text: str) -> str:
+    """多行文本转 markdown 引用块。"""
+    return "\n".join(f"> {ln}" if ln.strip() else ">" for ln in text.splitlines())
+
+
 def render_md(rows, stats) -> str:
-    lines = [
-        "## 四管道水平对比(Nova Store 伪造语料,真实 qwen-plus + text-embedding-v2)",
+    out = [
+        "# 四管道水平对比(Nova Store 伪造语料,真实 qwen-plus + text-embedding-v2)",
         "",
-        "| 问题 | original RAG(检索 top1) | graph-rag(BFS 子图) | og-rag(超图事实) | 本体校验(guard) |",
-        "|---|---|---|---|---|",
     ]
     for r in rows:
-        top = f"{r['orig_top'][0]} sim={r['orig_top'][1]:.3f}"
-        ok1 = "✓" if r["orig_ok"] else "✗"
-        ok2 = "✓" if r["graph_ok"] else "✗"
-        ok3 = "✓" if r["og_ok"] else "✗"
+        out.append(f"## {r['id']} {r['question']}")
+        out.append("")
+        out.append(f"**埋坑**:{r['trap']}")
+        out.append("")
+
+        out.append(f"### original RAG —— 检索 top1:{r['orig_top'][0]} sim={r['orig_top'][1]:.3f}")
+        out.append(_quote(r["orig"]))
+        out.append(f"\n**{'✓ 答对' if r['orig_ok'] else '✗ 答错'}**")
+        out.append("")
+
+        out.append("### graph-rag —— 实体图 BFS 子图")
+        out.append(_quote(r["graph"]))
+        out.append(f"\n**{'✓ 答对' if r['graph_ok'] else '✗ 答错'}**")
+        out.append("")
+
+        out.append("### og-rag —— 超图事实命中")
+        out.append(_quote(r["og"]))
+        out.append(f"\n**{'✓ 答对' if r['og_ok'] else '✗ 答错'}**")
+        out.append("")
+
         if r["guard"].verdict == "PASS":
-            g = "PASS"
+            out.append("### 本体校验 —— PASS(未触发硬约束)")
+            out.append("")
         else:
-            g = f"BLOCKED {r['guard'].rule['id']} → {r['guard'].revised_answer[:24]}…"
-        lines.append(
-            f"| **{r['id']}** {r['question']} | {ok1} {top}<br>“{r['orig'][:36]}…” | "
-            f"{ok2}<br>“{r['graph'][:36]}…” | {ok3}<br>“{r['og'][:36]}…” | {g} |"
+            out.append(
+                f"### 本体校验 —— BLOCKED {r['guard'].rule['id']}:{r['guard'].message}"
+            )
+            out.append(_quote(f"拦截前的回答:{r['guard'].original_answer}"))
+            out.append("")
+            out.append(_quote(f"修订回答:{r['guard'].revised_answer}"))
+            out.append(
+                f"\n**{'✓ 修订后合规' if r['guard_ok'] else '✗ 修订仍不合规'}**"
+            )
+            out.append("")
+
+    # ── 总览统计表(只放对错,干净)──────────────────────────────
+    out.append("## 总览")
+    out.append("")
+    out.append("| 问题 | original RAG | graph-rag | og-rag | 本体校验 |")
+    out.append("|---|---|---|---|---|")
+    for r in rows:
+        guard_cell = (
+            "PASS"
+            if r["guard"].verdict == "PASS"
+            else f"拦截 {r['guard'].rule['id']} → {'✓' if r['guard_ok'] else '✗'}"
         )
-    lines += [
+        out.append(
+            f"| {r['id']} {r['question']} | "
+            f"{'✓' if r['orig_ok'] else '✗'} | "
+            f"{'✓' if r['graph_ok'] else '✗'} | "
+            f"{'✓' if r['og_ok'] else '✗'} | {guard_cell} |"
+        )
+    out += [
         "",
-        f"**汇总**:original RAG {stats['original_ok']}/{len(rows)} 正确;"
-        f"graph-rag {stats['graph_ok']}/{len(rows)} 正确(图能聚合多跳关联,"
-        f"但规则型约束不在图上 → 仍会翻车);og-rag {stats['og_ok']}/{len(rows)} 正确;"
-        f"guard 拦截 {stats['blocked']} 条错误断言,修订后 {stats['revised_ok']}/{len(rows)} 正确。",
+        f"| **正确率** | **{stats['original_ok']}/{len(rows)}** | "
+        f"**{stats['graph_ok']}/{len(rows)}** | **{stats['og_ok']}/{len(rows)}** | "
+        f"**拦截 {stats['blocked']} 条,修订后 {stats['revised_ok']}/{len(rows)} 合规** |",
+        "",
     ]
-    return "\n".join(lines)
+    return "\n".join(out)
 
 
 def render_detail(rows) -> str:
