@@ -43,9 +43,16 @@ def run_all(fresh: bool = False):
 
         guard = run_guard(qid, orig.answer, fresh=fresh, cfg=cfg)
         if guard.verdict == "PASS":
+            # PASS 无需修订,两个口径天然通过
+            guard_compliant = True
+            guard_std_ok = True
             guard_ok = True
         else:
-            guard_ok = guard.revised_ok  # 修订合规 = 不再违反该规则
+            # 双口径:①规则合规(修订不再触发硬约束,guard 自证)
+            #         ②标准答案命中(与前三列同一套 judgement,独立仲裁)
+            guard_compliant = guard.revised_ok
+            guard_std_ok, _ = judgement(qid, guard.revised_answer)
+            guard_ok = guard_compliant and guard_std_ok
 
         stats["original_ok"] += orig_ok
         stats["graph_ok"] += graph_ok
@@ -67,20 +74,31 @@ def run_all(fresh: bool = False):
                 "og_ok": og_ok,
                 "guard": guard,
                 "guard_ok": guard_ok,
+                "guard_compliant": guard_compliant,
+                "guard_std_ok": guard_std_ok,
             }
         )
     return rows, stats
 
 
+def _guard_cell(r: dict) -> str:
+    """guard 单元格:双口径信号。"""
+    if r["guard"].verdict == "PASS":
+        return "PASS"
+    tag = f"BLOCK({r['guard'].rule['id']})"
+    comp = "合✓" if r["guard_compliant"] else "合✗"
+    std = "对✓" if r["guard_std_ok"] else "对✗"
+    return f"{tag} {comp}·{std}"
+
+
 def render_text(rows, stats) -> str:
-    line = f"{'问题':<6} {'original':<10} {'graph':<7} {'og-rag':<7} {'guard':<15}"
+    line = f"{'问题':<6} {'original':<10} {'graph':<7} {'og-rag':<7} {'guard':<24}"
     out = [line, "-" * len(line)]
     for r in rows:
-        g = "PASS" if r["guard"].verdict == "PASS" else f"BLOCK({r['guard'].rule['id']})"
         out.append(
             f"{r['id']:<6} {'✓' if r['orig_ok'] else '✗':<10} "
             f"{'✓' if r['graph_ok'] else '✗':<7} {'✓' if r['og_ok'] else '✗':<7} "
-            f"{g:<15}  {r['question']}"
+            f"{_guard_cell(r):<24}  {r['question']}"
         )
     out.append("")
     out.append(
@@ -132,7 +150,8 @@ def render_md(rows, stats) -> str:
             out.append("")
             out.append(_quote(f"修订回答:{r['guard'].revised_answer}"))
             out.append(
-                f"\n**{'✓ 修订后合规' if r['guard_ok'] else '✗ 修订仍不合规'}**"
+                f"\n**修订评估(双口径)** — 规则合规:{'✓' if r['guard_compliant'] else '✗'}"
+                f" · 标准答案命中:{'✓' if r['guard_std_ok'] else '✗'}"
             )
             out.append("")
 
@@ -145,7 +164,7 @@ def render_md(rows, stats) -> str:
         guard_cell = (
             "PASS"
             if r["guard"].verdict == "PASS"
-            else f"拦截 {r['guard'].rule['id']} → {'✓' if r['guard_ok'] else '✗'}"
+            else f"拦截 {r['guard'].rule['id']} → 合{'✓' if r['guard_compliant'] else '✗'}·对{'✓' if r['guard_std_ok'] else '✗'}"
         )
         out.append(
             f"| {r['id']} {r['question']} | "
@@ -155,9 +174,12 @@ def render_md(rows, stats) -> str:
         )
     out += [
         "",
+        "> 本体校验列口径:『合』= 修订不再触发硬约束(guard 自证);",
+        "> 『对』= 修订命中标准答案(与前三列同一套 judgement,独立仲裁)。",
+        "",
         f"| **正确率** | **{stats['original_ok']}/{len(rows)}** | "
         f"**{stats['graph_ok']}/{len(rows)}** | **{stats['og_ok']}/{len(rows)}** | "
-        f"**拦截 {stats['blocked']} 条,修订后 {stats['revised_ok']}/{len(rows)} 合规** |",
+        f"**拦截 {stats['blocked']} 条,修订后 {stats['revised_ok']}/{len(rows)} 双口径通过** |",
         "",
     ]
     return "\n".join(out)
@@ -177,7 +199,9 @@ def render_detail(rows) -> str:
         else:
             out.append(
                 f"\n[本体校验] BLOCKED {r['guard'].rule['id']}: {r['guard'].message}"
-                f"\n  修订回答: {r['guard'].revised_answer}  →  {'✓' if r['guard_ok'] else '✗'}"
+                f"\n  修订回答: {r['guard'].revised_answer}"
+                f"\n  修订评估(双口径): 规则{'✓' if r['guard_compliant'] else '✗'} · "
+                f"标准答案{'✓' if r['guard_std_ok'] else '✗'}"
             )
     return "\n".join(out)
 
