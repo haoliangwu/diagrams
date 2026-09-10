@@ -39,9 +39,16 @@ def _cn_to_int(s: str) -> int:
     return _CN_DIGITS.get(s, 0)
 
 
+# 否定语境:出现这些词说明该期数是被否认的("没有36期"),不算违规断言
+_PERIOD_NEG = ("没有", "不是", "不存在", "并非")
+
+
 def _extract_periods(a: str) -> list[int]:
     nums: list[int] = []
     for m in re.finditer(r"(\d{1,2}|[一二三四五六七八九十]+)\s*期", a):
+        pre = a[max(0, m.start() - 6):m.start()]
+        if any(n in pre for n in _PERIOD_NEG):
+            continue  # 否定语境:"没有36期"不是断言
         tok = m.group(1)
         nums.append(int(tok) if tok.isdigit() else _cn_to_int(tok))
     return nums
