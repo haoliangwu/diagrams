@@ -63,13 +63,22 @@ python3 ontology_guard.py --qid Q4
 
 ## 配置(动态)
 
-读取顺序:先专用环境变量,再通用变量,最后兜底解析 `shared-backend/.env`:
+每个 repo 自带 `demos/.env`(不入库,部署时自填);读取顺序:
 
-| 优先 | 环境变量 | 默认 |
+| 优先 | 环境变量 / 文件 | 默认 |
 |---|---|---|
 | 1 | `DEMO_CHAT_BASE_URL` / `DEMO_CHAT_API_KEY` / `DEMO_CHAT_MODEL` / `DEMO_EMBEDDING_MODEL` | — |
 | 2 | `DEFAULT_CHAT_BASE_URL` / `DEFAULT_CHAT_API_KEY` / `DEFAULT_CHAT_MODEL` / `DEFAULT_EMBEDDING_MODEL` | — |
-| 3 | `shared-backend/.env`(路径可用 `NEO_NOVA_BE_ENV` 覆盖) | qwen-plus / text-embedding-v2 |
+| 3 | `demos/.env`(本仓库自带配置) | qwen-plus / text-embedding-v2 |
+
+`.env` 内容示例(外部 repo = dashscope,内部 repo = 内网网关,各自填各自的):
+
+```bash
+DEFAULT_CHAT_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+DEFAULT_CHAT_API_KEY=sk-***
+DEFAULT_CHAT_MODEL=qwen-plus
+DEFAULT_EMBEDDING_MODEL=text-embedding-v2
+```
 
 改模型示例:
 

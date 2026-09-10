@@ -5,9 +5,9 @@
 1. 专用环境变量:  DEMO_CHAT_BASE_URL / DEMO_CHAT_API_KEY / DEMO_CHAT_MODEL /
                     DEMO_EMBEDDING_MODEL
 2. 通用环境变量:   DEFAULT_CHAT_BASE_URL / DEFAULT_CHAT_API_KEY / DEFAULT_CHAT_MODEL /
-                    DEFAULT_EMBEDDING_MODEL        (与 shared-backend / cs-agent 同约定)
-3. 兜底:           解析 <repo>/shared-backend/.env 里的 DEFAULT_CHAT_* 键
-                   (默认路径可用 NEO_NOVA_BE_ENV 覆盖)
+                    DEFAULT_EMBEDDING_MODEL
+3. 仓库内配置:     与 config.py 同目录的 .env(各 repo 自带,不入库)
+4. 内置默认
 
 key 永远不进代码。demo 本身也从不打印完整 key。
 """
@@ -20,20 +20,8 @@ from pathlib import Path
 
 DEFAULT_DASH_SCOPE_BASE = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 
-# 探测 shared-backend 仓库位置:依次试相邻目录 / 常见路径
-# (本文件位于 .../lyon/diagrams/ontology-rag/demos/,parent.parent 即 ~/lyon)
-_CANDIDATE_BE_ENVS = [
-    Path(os.environ["NEO_NOVA_BE_ENV"]).expanduser()
-    if os.environ.get("NEO_NOVA_BE_ENV")
-    else None,
-    Path(__file__).resolve().parent.parent / "bkyz" / "shared-backend" / ".env",
-    Path.home() / "lyon" / "bkyz" / "shared-backend" / ".env",
-]
-
-
-# 本地优先配置:与 config.py 同目录的 .env.local(仓库级本地默认,不入库)。
-# 内部部署放这里:内网 base/模型/key;外部仓库不放此文件即跳过。
-_LOCAL_ENV = Path(__file__).resolve().parent / ".env.local"
+# 仓库自带配置:demos/.env(不入库,各 repo 部署时自填)
+_REPO_ENV = Path(__file__).resolve().parent / ".env"
 
 
 def _parse_env_file(path: Path) -> dict[str, str]:
@@ -52,15 +40,8 @@ def _parse_env_file(path: Path) -> dict[str, str]:
     return out
 
 
-def _backend_env() -> dict[str, str]:
-    for p in _CANDIDATE_BE_ENVS:
-        if p and p.exists():
-            return _parse_env_file(p)
-    return {}
-
-
-def _local_env() -> dict[str, str]:
-    return _parse_env_file(_LOCAL_ENV)
+def _repo_env() -> dict[str, str]:
+    return _parse_env_file(_REPO_ENV)
 
 
 @dataclass
@@ -92,19 +73,16 @@ def _first(*vals: str | None) -> str | None:
 
 
 def load_config() -> DemoConfig:
-    local = _local_env()
-    be = _backend_env()
+    repo = _repo_env()
 
     def resolve(primary: str | None, generic: str | None, backend_key: str, default: str = "") -> tuple[str, str]:
-        """返回 (值, 来源标签)。优先级: DEMO_* env → DEFAULT_* env → .env.local → shared-backend/.env。"""
+        """返回 (值, 来源标签)。优先级: DEMO_* env → DEFAULT_* env → demos/.env。"""
         if primary:
             return primary, "env(DEMO_*)"
         if generic:
             return generic, "env(DEFAULT_*)"
-        if local.get(backend_key):
-            return local[backend_key], "demos/.env.local"
-        if be.get(backend_key):
-            return be[backend_key], "shared-backend/.env"
+        if repo.get(backend_key):
+            return repo[backend_key], "demos/.env"
         return default, "default"
 
     base, b_src = resolve(
