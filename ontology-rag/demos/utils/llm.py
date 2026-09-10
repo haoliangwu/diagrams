@@ -13,9 +13,10 @@ from pathlib import Path
 
 import requests
 
-from config import DemoConfig
+from utils.config import DemoConfig
 
-CACHE_DIR = Path(__file__).resolve().parent / ".cache"
+# 缓存落在 demos/.cache(utils 的上一级)
+CACHE_DIR = Path(__file__).resolve().parent.parent / ".cache"
 LLM_CACHE = CACHE_DIR / "llm.json"
 
 

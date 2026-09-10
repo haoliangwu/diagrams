@@ -16,8 +16,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from config import load_config
-from llm import chat
+from utils.config import load_config
+from utils.llm import chat
 
 # ── 手工构造的知识图谱(节点 + 有向关系边)──────────────────────────────────
 NODES: dict[str, str] = {
@@ -165,7 +165,7 @@ def run_graph_rag(question: str, fresh: bool = False, cfg=None) -> GraphRagResul
 if __name__ == "__main__":
     import argparse
 
-    from questions import QUESTIONS, judgement
+    from utils.questions import QUESTIONS, judgement
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--fresh", action="store_true")

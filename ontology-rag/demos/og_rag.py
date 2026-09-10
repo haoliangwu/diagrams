@@ -10,9 +10,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from config import load_config
-from llm import chat
-from ontology_data import FACTS, match_facts
+from utils.config import load_config
+from utils.llm import chat
+from utils.ontology_data import FACTS, match_facts
 
 SYSTEM_PROMPT = (
     "你是 Nova Store 的客服助手。以下『事实』是经过校验的权威本体数据,"
@@ -47,7 +47,7 @@ def run_og_rag(question: str, fresh: bool = False, cfg=None) -> OgRagResult:
 if __name__ == "__main__":
     import argparse
 
-    from questions import QUESTIONS, judgement
+    from utils.questions import QUESTIONS, judgement
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--fresh", action="store_true")

@@ -11,10 +11,10 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from config import load_config
-from corpus import CORPUS
-from embed import cosine_sim, embed_texts
-from llm import chat
+from utils.config import load_config
+from utils.corpus import CORPUS
+from utils.embed import cosine_sim, embed_texts
+from utils.llm import chat
 
 TOP_K = 1
 
@@ -56,7 +56,7 @@ def run_rag(question: str, fresh: bool = False, cfg=None) -> RagResult:
 if __name__ == "__main__":
     import argparse
 
-    from questions import QUESTIONS, judgement
+    from utils.questions import QUESTIONS, judgement
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--fresh", action="store_true", help="绕过缓存,真实调用 API")

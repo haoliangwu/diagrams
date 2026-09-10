@@ -14,11 +14,11 @@ from __future__ import annotations
 
 import argparse
 
-from config import load_config, describe
+from utils.config import load_config, describe
 from graph_rag import run_graph_rag
 from og_rag import run_og_rag
 from ontology_guard import run_guard
-from questions import QUESTIONS, judgement
+from utils.questions import QUESTIONS, judgement
 from rag_original import run_rag
 
 HEADERS = ["问题", "original RAG", "graph-rag", "og-rag", "本体校验"]

@@ -20,8 +20,8 @@ from pathlib import Path
 
 DEFAULT_DASH_SCOPE_BASE = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 
-# 仓库自带配置:demos/.env(不入库,各 repo 部署时自填)
-_REPO_ENV = Path(__file__).resolve().parent / ".env"
+# 仓库自带配置:demos/.env 在 utils 的上一级(不入库,各 repo 部署时自填)
+_REPO_ENV = Path(__file__).resolve().parent.parent / ".env"
 
 
 def _parse_env_file(path: Path) -> dict[str, str]:

@@ -12,6 +12,27 @@ graph-rag 与 og-rag 均为**自实现简易版**(约百行),不依赖 graphrag 
 语料是**伪造的**(Nova Store 客服知识库),embedding 与 LLM 流程**真实**
 (DashScope OpenAI 兼容 API:text-embedding-v2 + qwen-plus)。
 
+## 目录结构
+
+```
+demos/
+├── rag_original.py        # demo 1:朴素向量检索 top1 + LLM
+├── graph_rag.py           # demo 2:实体图 BFS 子图 + LLM
+├── og_rag.py              # demo 3:超图事实命中 + LLM
+├── ontology_guard.py      # demo 4:硬约束校验 + 修订
+├── compare.py             # 对比器:同一问题集跑四管道,输出总览
+├── compare_results.md     # 生成的结果文档(逐题段落 + 总览表)
+├── utils/                 # 基础设施(共享)
+│   ├── config.py          #   动态配置(env → demos/.env)
+│   ├── llm.py             #   OpenAI 兼容 chat client(带缓存)
+│   ├── embed.py           #   embedding client(带缓存)
+│   ├── corpus.py          #   伪造语料(埋坑设计)
+│   ├── questions.py       #   问题集 + 标准答案判定
+│   └── ontology_data.py   #   超图事实(ABox)+ 约束规则(RULE 层)
+├── .env                   # 本仓库配置(不入库):base/model/key/embedding
+└── .cache/                # 真实 API 结果缓存(可离线复现,不入库可选)
+```
+
 ## 埋坑设定(为什么朴素 RAG 会翻车)
 
 知识库是多源汇集的,混着**表面正确、实则错误的断言**(促销落地页 / 过期公告 /

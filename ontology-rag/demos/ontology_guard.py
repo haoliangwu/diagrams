@@ -17,9 +17,9 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from config import load_config
-from llm import chat
-from ontology_data import RULES
+from utils.config import load_config
+from utils.llm import chat
+from utils.ontology_data import RULES
 
 # 问题 id -> 应校验的规则 id(控制组 Q5 无约束)
 QUESTION_RULE: dict[str, str] = {"Q1": "R1", "Q2": "R2", "Q3": "R3", "Q4": "R4", "Q5": ""}
@@ -134,7 +134,7 @@ def run_guard(question_id: str, original_answer: str, fresh: bool = False, cfg=N
 
 
 def _question_text(question_id: str) -> str:
-    from questions import QUESTIONS
+    from utils.questions import QUESTIONS
 
     return next(q["question"] for q in QUESTIONS if q["id"] == question_id)
 
@@ -142,7 +142,7 @@ def _question_text(question_id: str) -> str:
 if __name__ == "__main__":
     import argparse
 
-    from questions import QUESTIONS
+    from utils.questions import QUESTIONS
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--fresh", action="store_true")
