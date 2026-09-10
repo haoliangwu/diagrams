@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GraphRAG 的两个短板</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600&family=Noto+Serif+SC:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-paper:   #f5f5f5;   /* white-smoke */
+      --color-ink:     #2d3142;   /* jet-black */
+      --color-muted:   #4f5d75;   /* blue-slate */
+      --color-accent:  #eb6c36;   /* atomic-tangerine */
+      --font-sans:     'Geist', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+      --font-serif:    'Instrument Serif', 'Noto Serif SC', serif;
+      --font-mono:     'Geist Mono', 'Noto Sans Mono CJK SC', monospace;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-paper);
+      color: var(--color-ink);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 2rem;
+    }
+
+    .frame { max-width: 1200px; width: 100%; }
+
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      margin-bottom: 0.5rem;
+      line-height: 1.4;
+    }
+
+    h1 {
+      font-family: var(--font-serif);
+      font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2rem);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      color: var(--color-ink);
+      margin-bottom: 1.5rem;
+    }
+
+    svg { width: 100%; min-width: 900px; display: block; }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">ONTOLOGY × RAG &nbsp;·&nbsp; GRAPHRAG LIMITS</p>
+    <h1>路径是通的，答案却不一定对</h1>
+
+    <svg viewBox="0 0 960 600" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="grag-title grag-desc">
+      <title id="grag-title">GraphRAG 的两个短板：多跳走偏与多跳膨胀</title>
+      <desc id="grag-desc">左右两栏节点图。左栏：优惠券 A 与优惠券 B 都实线连接到同一笔订单，多跳推断路径（左侧虚线）认为两者可用，但订单标注"每笔订单限用一张"，规则否定了这条路径。右栏：用户问题（想要香蕉）经珊瑚边找到真正需要的答案，其余三条边通向无用的上下文，显示多跳捞回的远多于有用的。</desc>
+      <defs>
+        <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+        <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/></marker>
+        <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/></marker>
+      </defs>
+
+      <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+      <!-- ===== 眉标 ===== -->
+      <text x="240" y="52" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.14em">MULTI-HOP · 多跳走偏</text>
+      <text x="720" y="52" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.14em">UNBOUNDED HOP · 多跳膨胀</text>
+
+      <!-- 左右分隔线 -->
+      <line x1="480" y1="80" x2="480" y2="520" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+
+      <!-- ============================================================
+           左栏：优惠券互斥（关联存在 ≠ 规则允许）
+           ============================================================ -->
+      <!-- 实线：coupon_A → order -->
+      <path d="M 230 168 H 300 Q 308 168 308 176 V 235 Q 308 243 300 243 H 326" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <!-- 实线：coupon_B → order -->
+      <path d="M 230 358 H 300 Q 308 358 308 350 V 291 Q 308 283 300 283 H 326" fill="none" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <!-- 珊瑚虚线：Agent 多跳推断路径（A → B 可共用，绕过 order） -->
+      <path d="M 100 168 L 64 168 L 64 358 L 100 358" fill="none" stroke="#eb6c36" stroke-width="1.2" stroke-dasharray="5,4"/>
+      <rect x="68" y="204" width="120" height="16" rx="2" fill="#f5f5f5"/>
+      <text x="128" y="216" fill="#eb6c36" font-size="12" font-family="'Geist', 'Noto Sans SC', sans-serif" text-anchor="middle">推断：两张都能用</text>
+
+      <!-- 左栏节点 -->
+      <rect x="100" y="140" width="130" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="165" y="166" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', 'Noto Sans SC', sans-serif" text-anchor="middle">优惠券 A</text>
+      <text x="165" y="184" fill="#4f5d75" font-size="12" font-family="'Geist', 'Noto Sans SC', sans-serif" text-anchor="middle">可用于订单</text>
+
+      <rect x="100" y="330" width="130" height="56" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="165" y="356" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', 'Noto Sans SC', sans-serif" text-anchor="middle">优惠券 B</text>
+      <text x="165" y="374" fill="#4f5d75" font-size="12" font-family="'Geist', 'Noto Sans SC', sans-serif" text-anchor="middle">可用于订单</text>
+
+      <!-- order 焦点节点 + 规则标注 -->
+      <rect x="330" y="235" width="130" height="56" rx="6" fill="rgba(235,108,54,0.12)" stroke="#eb6c36" stroke-width="1.2"/>
+      <text x="395" y="261" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', 'Noto Sans SC', sans-serif" text-anchor="middle">同一笔订单</text>
+      <text x="395" y="279" fill="#eb6c36" font-size="12" font-family="'Geist', 'Noto Sans SC', sans-serif" text-anchor="middle">限用一张</text>
+      <rect x="315" y="210" width="160" height="16" rx="2" fill="#f5f5f5"/>
+      <text x="395" y="222" fill="#eb6c36" font-size="12" font-family="'Geist', 'Noto Sans SC', sans-serif" text-anchor="middle">每笔订单限用一张</text>
+
+      <!-- 左栏底部结论 -->
+      <text x="240" y="452" fill="#4f5d75" font-size="12" font-family="'Geist', 'Noto Sans SC', sans-serif" text-anchor="middle">图中路径通，规则却说不：关联存在 ≠ 能一起用</text>
+
+      <!-- ============================================================
+           右栏：多跳膨胀（捞回的远多于有用的）
+           ============================================================ -->
+      <!-- 珊瑚实线：query → answer -->
+      <path d="M 720 288 H 852 Q 860 288 860 280 V 148 H 856" fill="none" stroke="#eb6c36" stroke-width="1.2" marker-end="url(#arrow)"/>
+      <!-- muted 实线：query → 无用上下文 ×3 -->
+      <path d="M 720 288 H 852 Q 860 288 860 280 V 252 Q 860 244 852 244 H 846" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#arrow)"/>
+      <path d="M 720 288 H 844 Q 852 288 852 296 V 376 Q 852 384 844 384 H 846" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#arrow)"/>
+      <line x1="668" y1="316" x2="668" y2="426" stroke="#4f5d75" stroke-width="1" marker-end="url(#arrow)"/>
+
+      <!-- 右栏节点 -->
+      <rect x="590" y="260" width="130" height="56" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+      <text x="655" y="286" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', 'Noto Sans SC', sans-serif" text-anchor="middle">用户问题</text>
+      <text x="655" y="304" fill="#4f5d75" font-size="12" font-family="'Geist', 'Noto Sans SC', sans-serif" text-anchor="middle">想要一根香蕉</text>
+
+      <rect x="800" y="100" width="120" height="48" rx="6" fill="rgba(235,108,54,0.12)" stroke="#eb6c36" stroke-width="1.2"/>
+      <text x="860" y="128" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', 'Noto Sans SC', sans-serif" text-anchor="middle">真正需要的答案</text>
+
+      <rect x="800" y="220" width="120" height="48" rx="6" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+      <text x="860" y="248" fill="#2d3142" font-size="12" font-family="'Geist', 'Noto Sans SC', sans-serif" text-anchor="middle">大猩猩（沾边）</text>
+
+      <rect x="790" y="360" width="120" height="48" rx="6" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+      <text x="850" y="388" fill="#2d3142" font-size="12" font-family="'Geist', 'Noto Sans SC', sans-serif" text-anchor="middle">无用的上下文</text>
+
+      <rect x="610" y="430" width="120" height="48" rx="6" fill="rgba(45,49,66,0.03)" stroke="rgba(45,49,66,0.30)" stroke-width="1"/>
+      <text x="670" y="458" fill="#2d3142" font-size="12" font-family="'Geist', 'Noto Sans SC', sans-serif" text-anchor="middle">整片丛林</text>
+
+      <!-- 右栏底部结论 -->
+      <text x="720" y="524" fill="#4f5d75" font-size="12" font-family="'Geist', 'Noto Sans SC', sans-serif" text-anchor="middle">捞回一堆沾边的，真答案照样难找</text>
+
+      <!-- ===== 底部跨栏结论 ===== -->
+      <line x1="120" y1="556" x2="840" y2="556" stroke="rgba(45,49,66,0.12)" stroke-width="0.8"/>
+      <text x="480" y="580" fill="#4f5d75" font-size="12" font-family="'Geist', 'Noto Sans SC', sans-serif" text-anchor="middle">图能告诉你谁和谁相关，却不告诉你哪些满足条件</text>
+
+    </svg>
+  </div>
+</body>
+</html>

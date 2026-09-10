@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>普通图 vs 超图：同一条事实</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600&family=Noto+Serif+SC:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-paper:   #f5f5f5;   /* white-smoke */
+      --color-ink:     #2d3142;   /* jet-black */
+      --color-muted:   #4f5d75;   /* blue-slate */
+      --color-accent:  #eb6c36;   /* atomic-tangerine */
+      --font-sans:     'Geist', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+      --font-serif:    'Instrument Serif', 'Noto Serif SC', serif;
+      --font-mono:     'Geist Mono', 'Noto Sans Mono CJK SC', monospace;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-paper);
+      color: var(--color-ink);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 2rem;
+    }
+
+    .frame { max-width: 1200px; width: 100%; }
+
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      margin-bottom: 0.5rem;
+      line-height: 1.4;
+    }
+
+    h1 {
+      font-family: var(--font-serif);
+      font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2rem);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      color: var(--color-ink);
+      margin-bottom: 1.5rem;
+    }
+
+    svg { width: 100%; min-width: 900px; display: block; }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">ONTOLOGY × RAG &nbsp;·&nbsp; GRAPH VS HYPERGRAPH</p>
+    <h1>同一条事实，两种画法</h1>
+
+    <svg viewBox="0 0 960 600" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="graph-hyper-title graph-hyper-desc">
+      <title id="graph-hyper-title">普通图与超图表达同一条事实的对比</title>
+      <desc id="graph-hyper-desc">左侧普通图用一条边连两个节点，为表达"大豆发芽期 25–30°C 且需要发芽测试"要画 5 个节点、4 条边，还依赖多跳查询拼接；右侧超图用一条超边把 soybean、germination、25°C–30°C 三个节点同时绑在一起。</desc>
+      <defs>
+        <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+        <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/></marker>
+        <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/></marker>
+      </defs>
+
+      <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+      <!-- ===== 眉标（左右两组标题） ===== -->
+      <text x="240" y="48" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.14em">ORDINARY GRAPH</text>
+      <text x="240" y="76" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', 'Noto Sans SC', sans-serif" text-anchor="middle">一条边 = 两个节点</text>
+
+      <text x="740" y="48" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.14em">OG-RAG HYPERGRAPH</text>
+      <text x="740" y="76" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', 'Noto Sans SC', sans-serif" text-anchor="middle">一条边 = 一条事实</text>
+
+      <!-- 左右分隔线 -->
+      <line x1="480" y1="92" x2="480" y2="504" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+
+      <!-- ============================================================
+           左：普通图 — 5 节点 4 边，表达同一条事实
+           ============================================================ -->
+      <!-- 边（先画线，后画节点） -->
+      <!-- 1. soybean -is_a-> crop -->
+      <line x1="208" y1="120" x2="308" y2="120" stroke="#4f5d75" stroke-width="1" marker-end="url(#arrow)"/>
+      <rect x="240" y="98" width="36" height="14" rx="2" fill="#f5f5f5"/>
+      <text x="258" y="108" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">IS_A</text>
+
+      <!-- 2. soybean -germinates-> germination（垂直） -->
+      <line x1="138" y1="148" x2="138" y2="252" stroke="#4f5d75" stroke-width="1" marker-end="url(#arrow)"/>
+      <rect x="144" y="196" width="64" height="14" rx="2" fill="#f5f5f5"/>
+      <text x="148" y="204" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.06em">GERMINATES</text>
+
+      <!-- 3. germination -temperature-> 25°C–30°C（水平） -->
+      <line x1="208" y1="280" x2="288" y2="280" stroke="#4f5d75" stroke-width="1" marker-end="url(#arrow)"/>
+      <rect x="224" y="260" width="64" height="14" rx="2" fill="#f5f5f5"/>
+      <text x="256" y="268" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">TEMPERATURE</text>
+
+      <!-- 4. germination -requires_test-> seed_germination_test（折线，y>304 避开 TEMPERATURE） -->
+      <path d="M 180 304 L 180 360 L 272 360 L 272 408" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#arrow)"/>
+      <rect x="200" y="340" width="52" height="14" rx="2" fill="#f5f5f5"/>
+      <text x="226" y="350" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">REQUIRES_TEST</text>
+
+      <!-- 普通图节点 -->
+      <rect x="68" y="96" width="140" height="48" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="138" y="124" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', 'Noto Sans SC', sans-serif" text-anchor="middle">soybean</text>
+
+      <rect x="312" y="96" width="140" height="48" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="382" y="124" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', 'Noto Sans SC', sans-serif" text-anchor="middle">crop</text>
+
+      <rect x="68" y="256" width="140" height="48" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="138" y="284" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', 'Noto Sans SC', sans-serif" text-anchor="middle">germination</text>
+
+      <rect x="292" y="256" width="140" height="48" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="362" y="284" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', 'Noto Sans SC', sans-serif" text-anchor="middle">25°C – 30°C</text>
+
+      <rect x="192" y="416" width="160" height="48" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="272" y="444" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', 'Noto Sans SC', 'Noto Sans Mono CJK SC', sans-serif" text-anchor="middle">seed_germination_test</text>
+
+      <!-- 左图旁注（保留文字，去掉引导线） -->
+      <text x="436" y="224" fill="#4f5d75" font-size="12" font-family="'Noto Serif SC', serif" text-anchor="end">要凑齐这条事实，得 4 条边、5 个节点</text>
+
+      <!-- ============================================================
+           右：超图 — 一条超边绑三个节点
+           ============================================================ -->
+      <!-- 超边（accent 焦点，先画） -->
+      <ellipse cx="740" cy="288" rx="184" ry="148" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1.2"/>
+      <text x="740" y="160" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">ONE FACT = ONE HYPEREDGE</text>
+      <text x="740" y="288" fill="#2d3142" font-size="12" font-family="'Geist', 'Noto Sans SC', sans-serif" text-anchor="middle">三个节点被同一条事实同时绑定</text>
+
+      <!-- 超图节点 -->
+      <rect x="680" y="180" width="120" height="40" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="740" y="204" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', 'Noto Sans SC', sans-serif" text-anchor="middle">soybean</text>
+
+      <rect x="532" y="360" width="136" height="40" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="600" y="384" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', 'Noto Sans SC', sans-serif" text-anchor="middle">germination</text>
+
+      <rect x="800" y="360" width="136" height="40" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="868" y="384" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', 'Noto Sans SC', sans-serif" text-anchor="middle">25°C – 30°C</text>
+
+      <!-- 右图旁注（保留文字，去掉引导线） -->
+      <text x="928" y="488" fill="#4f5d75" font-size="12" font-family="'Noto Serif SC', serif" text-anchor="end">节点已经在同一条边上，无需多跳拼接</text>
+
+      <!-- ===== 底部结论 ===== -->
+      <line x1="120" y1="540" x2="840" y2="540" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+      <text x="480" y="568" fill="#4f5d75" font-size="12" font-family="'Geist', 'Noto Sans SC', sans-serif" text-anchor="middle">同一条事实：普通图要 4 条边加一次多跳拼接才能讲清，超图一条边全部绑定</text>
+
+    </svg>
+  </div>
+</body>
+</html>
