@@ -31,6 +31,11 @@ _CANDIDATE_BE_ENVS = [
 ]
 
 
+# 本地优先配置:与 config.py 同目录的 .env.local(仓库级本地默认,不入库)。
+# 内部部署放这里:内网 base/模型/key;外部仓库不放此文件即跳过。
+_LOCAL_ENV = Path(__file__).resolve().parent / ".env.local"
+
+
 def _parse_env_file(path: Path) -> dict[str, str]:
     """极简 .env 解析:KEY=VALUE,忽略注释与空行,不做 shell 求值。"""
     out: dict[str, str] = {}
@@ -52,6 +57,10 @@ def _backend_env() -> dict[str, str]:
         if p and p.exists():
             return _parse_env_file(p)
     return {}
+
+
+def _local_env() -> dict[str, str]:
+    return _parse_env_file(_LOCAL_ENV)
 
 
 @dataclass
@@ -83,14 +92,17 @@ def _first(*vals: str | None) -> str | None:
 
 
 def load_config() -> DemoConfig:
+    local = _local_env()
     be = _backend_env()
 
     def resolve(primary: str | None, generic: str | None, backend_key: str, default: str = "") -> tuple[str, str]:
-        """返回 (值, 来源标签)。"""
+        """返回 (值, 来源标签)。优先级: DEMO_* env → DEFAULT_* env → .env.local → shared-backend/.env。"""
         if primary:
             return primary, "env(DEMO_*)"
         if generic:
             return generic, "env(DEFAULT_*)"
+        if local.get(backend_key):
+            return local[backend_key], "demos/.env.local"
         if be.get(backend_key):
             return be[backend_key], "shared-backend/.env"
         return default, "default"

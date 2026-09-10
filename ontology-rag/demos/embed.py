@@ -43,8 +43,14 @@ def _save_cache(cache: dict) -> None:
 
 def embed_texts(cfg: DemoConfig, texts: list[str], fresh: bool = False) -> np.ndarray:
     """批量 embed,返回 (n, dim) 数组。fresh=True 时绕过缓存真实调用。"""
-    key = _corpus_hash(texts)
+    legacy_key = _corpus_hash(texts)  # 旧版键:纯语料哈希
+    key = f"{cfg.embedding_model}:{legacy_key}"  # 新版键:含模型名,防换模型误用旧向量
     cache = {} if fresh else _load_cache()
+
+    # 旧缓存迁移:同模型同语料,旧键条目直接升为新键,并落盘
+    if not fresh and legacy_key in cache and key not in cache:
+        cache[key] = cache[legacy_key]
+        _save_cache(cache)
 
     if not fresh and key in cache:
         arr = np.asarray(cache[key], dtype=np.float32)
