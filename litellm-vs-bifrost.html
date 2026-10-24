@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LiteLLM vs Bifrost — Internal AI Gateway Evaluation</title>
+<style>
+:root{
+  --bg:#faf9f6; --paper:#ffffff; --ink:#1d1b17; --muted:#6d675c; --faint:#98917f;
+  --line:#e6e1d6; --line-strong:#cfc8b8;
+  --litellm:#0e5f52; --litellm-bg:#eef5f2;
+  --bifrost:#a34a22; --bifrost-bg:#f8efe8;
+  --warn:#8a6d1a; --warn-bg:#faf3dd;
+  --serif:"Noto Serif",Georgia,"Times New Roman",serif;
+  --sans:-apple-system,"Segoe UI",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+  font-size:15px;line-height:1.7;}
+a{color:var(--litellm);text-decoration:none;border-bottom:1px solid rgba(14,95,82,.35)}
+a:hover{border-bottom-color:currentColor}
+code{font-family:var(--mono);font-size:.86em;background:#f1eee6;border:1px solid var(--line);
+  border-radius:3px;padding:.08em .35em;white-space:nowrap}
+
+/* ---- masthead ---- */
+header.mast{border-bottom:2px solid var(--ink);background:var(--paper)}
+.mast-in{max-width:980px;margin:0 auto;padding:44px 24px 30px}
+.kicker{font-family:var(--mono);font-size:12px;letter-spacing:.18em;color:var(--muted);
+  text-transform:uppercase;margin:0 0 10px}
+h1{font-family:var(--serif);font-weight:700;font-size:clamp(26px,4.2vw,40px);line-height:1.22;
+  margin:0 0 14px;letter-spacing:.005em}
+.mast-meta{display:flex;flex-wrap:wrap;gap:8px 22px;font-size:13px;color:var(--muted)}
+.mast-meta span{display:inline-flex;align-items:center;gap:6px}
+.mast-meta b{color:var(--ink);font-weight:600}
+.ctx{max-width:980px;margin:22px auto 0;padding:0 24px}
+.ctx-in{border-left:3px solid var(--line-strong);padding:6px 18px;font-size:13.5px;color:var(--muted)}
+.ctx-in b{color:var(--ink)}
+
+/* ---- verdict banner ---- */
+.verdict{max-width:980px;margin:26px auto 0;padding:0 24px}
+.verdict-in{background:var(--paper);border:1.5px solid var(--ink);padding:22px 26px;position:relative}
+.verdict-in::before{content:"VERDICT";position:absolute;top:-11px;left:20px;background:var(--ink);
+  color:var(--paper);font-family:var(--mono);font-size:11px;letter-spacing:.3em;
+  padding:3px 8px 2px 11px}
+.verdict-in .headline{font-family:var(--serif);font-size:21px;font-weight:700;margin:2px 0 10px}
+.verdict-in ul{margin:8px 0 0;padding-left:1.2em}
+.verdict-in li{margin:4px 0}
+.gap-note{margin-top:12px;padding-top:12px;border-top:1px dashed var(--line-strong);
+  font-size:13.5px;color:var(--muted)}
+
+/* ---- nav ---- */
+nav.toc{position:sticky;top:0;background:rgba(250,249,246,.94);backdrop-filter:blur(4px);
+  border-bottom:1px solid var(--line-strong);z-index:20;margin-top:30px}
+.toc-in{max-width:980px;margin:0 auto;padding:0 24px;display:flex;gap:2px;overflow-x:auto}
+.toc a{flex:0 0 auto;padding:9px 12px 7px;font-size:13px;color:var(--muted);border:none;
+  border-bottom:2px solid transparent;white-space:nowrap}
+.toc a:hover{color:var(--ink)}
+.toc a.active{color:var(--litellm);border-bottom-color:var(--litellm);font-weight:600}
+.toc .num{font-family:var(--mono);font-size:11px;margin-right:4px;color:var(--faint)}
+.toc a.active .num{color:var(--litellm)}
+
+/* ---- body ---- */
+main{max-width:760px;margin:0 auto;padding:8px 24px 80px}
+section{margin-top:56px;scroll-margin-top:64px}
+h2{font-family:var(--serif);font-size:25px;font-weight:700;margin:0 0 4px;
+  display:flex;align-items:baseline;gap:12px}
+h2 .n{font-family:var(--mono);font-size:13px;font-weight:400;color:var(--faint)}
+.lede{color:var(--muted);font-size:14px;margin:6px 0 18px}
+h3{font-family:var(--serif);font-size:17.5px;font-weight:700;margin:26px 0 8px}
+h3 .tag{font-family:var(--mono);font-size:11px;color:var(--faint);font-weight:400;margin-left:8px}
+p{margin:0 0 12px}
+hr.sep{border:none;border-top:1px solid var(--line-strong);margin:48px 0 0}
+
+/* wide breakout for tables */
+.breakout{max-width:1080px;margin:18px calc((760px - 1080px)/2 - 24px)}
+@media (max-width:1128px){.breakout{margin:18px -24px}}
+.twrap{overflow-x:auto;background:var(--paper);border:1px solid var(--line-strong)}
+table{border-collapse:collapse;width:100%;font-size:13px;line-height:1.55}
+th,td{text-align:left;padding:9px 12px;vertical-align:top;border-bottom:1px solid var(--line)}
+thead th{font-size:12px;font-weight:600;color:var(--muted);border-bottom:1.5px solid var(--line-strong);
+  white-space:nowrap;background:#f5f3ec}
+tbody tr:last-child td{border-bottom:none}
+td.dim{font-family:var(--mono);font-size:12px;color:var(--ink);white-space:nowrap;font-weight:600}
+col.c-lit{background:var(--litellm-bg)} col.c-bif{background:var(--bifrost-bg)}
+th.h-lit{color:var(--litellm)} th.h-bif{color:var(--bifrost)}
+td .ok{color:var(--litellm);font-weight:700}
+td .no{color:var(--bifrost);font-weight:700}
+td .part{color:var(--warn);font-weight:700}
+td small{color:var(--muted)}
+
+/* side-by-side definition blocks */
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0}
+@media (max-width:640px){.duo{grid-template-columns:1fr}}
+.duo .cell{background:var(--paper);border:1px solid var(--line-strong);padding:14px 16px}
+.duo .cell h4{margin:0 0 8px;font-size:13px;font-family:var(--mono);letter-spacing:.06em}
+.duo .cell.lit h4{color:var(--litellm)} .duo .cell.bif h4{color:var(--bifrost)}
+.duo .cell.lit{border-top:3px solid var(--litellm)}
+.duo .cell.bif{border-top:3px solid var(--bifrost)}
+.duo ul{margin:0;padding-left:1.1em;font-size:13px}
+.duo li{margin:4px 0}
+
+/* callouts */
+.callout{border:1px solid var(--line-strong);background:var(--paper);padding:14px 18px;
+  margin:16px 0;font-size:13.5px}
+.callout.warn{border-left:4px solid var(--warn);background:var(--warn-bg)}
+.callout.note{border-left:4px solid var(--litellm)}
+.callout .ct{font-family:var(--serif);font-weight:700;font-size:14px;margin-bottom:4px}
+
+/* benchmark bars */
+.bench{background:var(--paper);border:1px solid var(--line-strong);padding:20px 22px;margin:16px 0}
+.bench .cap{font-size:12px;color:var(--muted);margin:0 0 16px}
+.bench .cap b{color:var(--ink)}
+.brow{display:grid;grid-template-columns:150px 1fr 90px;gap:10px;align-items:center;margin:10px 0}
+@media (max-width:560px){.brow{grid-template-columns:96px 1fr 78px}}
+.brow .lab{font-size:12.5px;color:var(--muted);text-align:right}
+.brow .lab b{color:var(--ink);display:block;font-weight:600}
+.brow .track{background:#efece3;height:22px;position:relative;border-radius:2px;overflow:hidden}
+.brow .bar{position:absolute;inset:0 auto 0 0;border-radius:2px}
+.bar.lit{background:var(--litellm)} .bar.bif{background:var(--bifrost)}
+.brow .val{font-family:var(--mono);font-size:12px;white-space:nowrap}
+.brow .val i{font-style:normal;color:var(--muted);display:block;font-size:10.5px}
+.bnote{font-size:12px;color:var(--muted);margin:14px 0 0;border-top:1px dashed var(--line-strong);padding-top:10px}
+
+/* stat strip (maturity) */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin:16px 0}
+.stat{background:var(--paper);border:1px solid var(--line-strong);padding:14px 16px}
+.stat .k{font-size:12px;color:var(--muted);margin-bottom:2px}
+.stat .v{font-family:var(--mono);font-size:17px;font-weight:600}
+.stat .v .u{font-size:11px;color:var(--faint);font-weight:400;margin-left:4px}
+.stat .s{font-size:11.5px;color:var(--faint);margin-top:2px;font-family:var(--mono)}
+
+/* timeline (security) */
+.tl{margin:16px 0;padding:0;list-style:none;border-left:2px solid var(--line-strong)}
+.tl li{position:relative;padding:2px 0 18px 24px;margin:0}
+.tl li::before{content:"";position:absolute;left:-6px;top:11px;width:10px;height:10px;
+  border-radius:50%;background:var(--paper);border:2px solid var(--bifrost)}
+.tl li.ok::before{border-color:var(--litellm)}
+.tl .when{font-family:var(--mono);font-size:11.5px;color:var(--faint)}
+.tl .what{font-weight:600;font-size:14px;margin:1px 0 3px}
+.tl .how{font-size:13px;color:var(--muted)}
+
+/* uncertainty list */
+ul.unv{list-style:none;padding:0;margin:14px 0}
+ul.unv li{padding:10px 14px 10px 38px;position:relative;border-bottom:1px solid var(--line);
+  font-size:13.5px}
+ul.unv li::before{content:"?";position:absolute;left:12px;top:9px;font-family:var(--mono);
+  font-weight:700;color:var(--warn);border:1.5px solid var(--warn);border-radius:50%;
+  width:19px;height:19px;display:flex;align-items:center;justify-content:center;font-size:12px}
+ul.unv li b{font-weight:600}
+
+/* sources */
+details.srcs{margin-top:14px;border:1px solid var(--line-strong);background:var(--paper)}
+details.srcs summary{cursor:pointer;padding:12px 18px;font-size:14px;font-weight:600;
+  list-style-position:inside;user-select:none}
+details.srcs[open] summary{border-bottom:1px solid var(--line)}
+.srcs ol{margin:0;padding:8px 18px 14px 42px;font-size:12.5px;line-height:1.7}
+.srcs .sec{font-family:var(--mono);font-size:11px;color:var(--faint);text-transform:uppercase;
+  letter-spacing:.1em;margin:10px 0 2px;list-style:none}
+footer.colophon{max-width:760px;margin:0 auto;padding:24px 24px 60px;color:var(--faint);
+  font-size:12px;border-top:1px solid var(--line-strong);margin-top:40px}
+
+/* legend chips */
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:10px 0 0}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+
+@media print{
+  nav.toc{display:none}
+  .twrap{overflow:visible}
+  body{font-size:11.5pt}
+  a{border:none;color:inherit}
+  .breakout{margin:0}
+  section{page-break-inside:avoid}
+  .verdict-in,.bench,.duo .cell{page-break-inside:avoid}
+}
+</style>
+</head>
+<body>
+
+<header class="mast">
+  <div class="mast-in">
+    <p class="kicker">Engineering decision record · NEONOVA-1264</p>
+    <h1>LiteLLM <span style="font-weight:400;color:var(--faint)">vs</span> Bifrost<br>Internal AI Gateway Evaluation</h1>
+    <div class="mast-meta">
+      <span>Researched <b>2026-10-23</b></span>
+      <span>Scope <b>internal gateway · ~100 users · 1 WhatsApp chatbot team</b></span>
+      <span>Status <b>LiteLLM OSS v1.106.2 POC in production-candidate trial</b></span>
+      <span>Alternative <b>maximhq/bifrost (Go)</b></span>
+    </div>
+  </div>
+</header>
+
+<div class="ctx"><div class="ctx-in">
+  <b>Decision baseline (our hard requirements)</b>: virtual keys + per-key/per-team <code>max_budget</code> with <code>soft_budget</code>; SQL-queryable spend logs with per-token pricing declared per model alias; admin UI with local accounts (email+password, no SSO); Postgres; team-level key issuance + per-key model allowlist; OpenAI-compatible API; DashScope/Qwen provider.
+  Every claim links a primary source; anything that could not be confirmed from primary sources is flagged in section 9.
+</div></div>
+
+<div class="verdict"><div class="verdict-in">
+  <div class="headline">Keep LiteLLM. Do not switch to Bifrost.</div>
+  <ul>
+    <li><b>Multi-user local-account admin UI</b> — Bifrost OSS ships a single admin account only; multiple users require Enterprise and force an IdP (OIDC/SCIM)</li>
+    <li><b>Native DashScope/Qwen</b> — Bifrost has no dashscope provider (only 172 qwen pricing entries in its datasheet); the only path is a custom provider on the openai base</li>
+    <li><b>Declarative per-alias pricing</b> — our <code>model_list[].model_info</code> pattern is native LiteLLM; Bifrost requires maintaining separate <code>pricing_overrides</code> objects</li>
+  </ul>
+  <div class="gap-note">Bifrost's real gain is <b>operational weight</b> (single binary / SQLite, no external DB / 85MB image / 6s cold start), not performance — for a ~100-user internal gateway both are far beyond need. If migration is ever triggered, an official LiteLLM migration CLI brings switching cost down to days, not months.</div>
+</div></div>
+
+<nav class="toc" aria-label="Section navigation">
+  <div class="toc-in">
+    <a href="#s1"><span class="num">1</span>Scorecard</a>
+    <a href="#s2"><span class="num">2</span>Architecture</a>
+    <a href="#s3"><span class="num">3</span>Governance</a>
+    <a href="#s4"><span class="num">4</span>Providers</a>
+    <a href="#s5"><span class="num">5</span>Performance</a>
+    <a href="#s6"><span class="num">6</span>Security</a>
+    <a href="#s7"><span class="num">7</span>Maturity</a>
+    <a href="#s8"><span class="num">8</span>Trade-offs</a>
+    <a href="#s9"><span class="num">9</span>Unverified</a>
+    <a href="#src"><span class="num">※</span>Sources</a>
+  </div>
+</nav>
+
+<main>
+
+<section id="s1">
+  <h2><span class="n">01</span>Scorecard</h2>
+  <p class="lede">Dimension-by-dimension comparison; the last column is the verdict for our POC. <span class="ok" style="color:var(--litellm)">●</span> supported / <span class="no" style="color:var(--bifrost)">●</span> missing / <span style="color:var(--warn)">●</span> partial.</p>
+  <div class="breakout"><div class="twrap">
+  <table>
+    <colgroup><col style="width:15%"><col class="c-lit" style="width:29%"><col class="c-bif" style="width:29%"><col style="width:27%"></colgroup>
+    <thead><tr>
+      <th>Dimension</th><th class="h-lit">LiteLLM</th><th class="h-bif">Bifrost</th><th>Verdict for us</th>
+    </tr></thead>
+    <tbody>
+    <tr><td class="dim">Virtual keys</td>
+      <td><span class="ok">✓</span> first-class, <code>/key/generate</code>, inherits owner's models/budgets <small>· <a href="https://docs.litellm.ai/docs/proxy/virtual_keys">docs</a></small></td>
+      <td><span class="ok">✓</span> first-class, OSS-enabled by default, <code>x-bf-vk</code> / <code>sk-bf-*</code> headers <small>· <a href="https://docs.getbifrost.ai/features/governance/virtual-keys">docs</a></small></td>
+      <td>Even</td></tr>
+    <tr><td class="dim">Budget hierarchy</td>
+      <td><span class="ok">✓</span> key-level <code>max_budget</code>+<code>soft_budget</code>; team-level <code>max_budget</code> <small>· <a href="https://docs.litellm.ai/docs/proxy/team_budgets">docs</a></small></td>
+      <td><span class="ok">✓</span> four independent layers Customer→Team→VK→ProviderConfig, additive validation <small>· <a href="https://docs.getbifrost.ai/features/governance/budget-and-limits">docs</a></small></td>
+      <td>Bifrost finer-grained</td></tr>
+    <tr><td class="dim">soft_budget alerts</td>
+      <td><span class="ok">✓</span> key-level soft threshold (Slack alert); team-level email alerting is Enterprise</td>
+      <td><span class="no">✗</span> no soft_budget concept; the substitute is a temporary budget override; alerting channels are Enterprise</td>
+      <td>LiteLLM slightly better</td></tr>
+    <tr><td class="dim">Spend logs (SQL-queryable)</td>
+      <td><span class="ok">✓</span> Postgres table <code>LiteLLM_SpendLogs</code> with token/cost <small>· <a href="https://docs.litellm.ai/docs/proxy/db_info">docs</a></small></td>
+      <td><span class="ok">✓</span> logs_store: SQLite / PostgreSQL / ClickHouse, GORM relational tables <small>· <a href="https://docs.getbifrost.ai/architecture/framework/log-store">docs</a></small></td>
+      <td>Even</td></tr>
+    <tr><td class="dim">Per-token pricing declaration</td>
+      <td><span class="ok">✓</span> <code>model_info.input/output_cost_per_token</code> written directly on the model alias <small>· <a href="https://docs.litellm.ai/docs/proxy/custom_pricing">docs</a></small></td>
+      <td><span class="part">△</span> via <code>pricing_overrides</code> patched by pattern+scope — finer scopes, but a separate object to maintain <small>· <a href="https://docs.getbifrost.ai/providers/custom-pricing">docs</a></small></td>
+      <td><b>LiteLLM matches our usage</b></td></tr>
+    <tr><td class="dim">Admin UI, local multi-account</td>
+      <td><span class="ok">✓</span> OSS ships Invite User (email+password); <code>disable_env_credential_login</code> kills env-credential login <small>· <a href="https://docs.litellm.ai/docs/proxy/ui">docs</a></small></td>
+      <td><span class="no">✗</span> OSS has a single admin account only; multi-user requires Enterprise and mandates an IdP <small>· <a href="https://docs.getbifrost.ai/quickstart/gateway/setting-up-auth">docs</a></small></td>
+      <td><b>LiteLLM clearly better (hard requirement)</b></td></tr>
+    <tr><td class="dim">DB dependency</td>
+      <td><span class="no">✗</span> Postgres mandatory; without a DB, keys cannot resolve and budgets fail open <small>· <a href="https://docs.litellm.ai/docs/proxy/users">docs</a></small></td>
+      <td><span class="ok">✓</span> SQLite by default, zero external DB; Postgres/ClickHouse optional <small>· <a href="https://docs.getbifrost.ai/deployment-guides/config-json/storage">docs</a></small></td>
+      <td>Bifrost lighter ops (we already run PG, so cost ≈ 0)</td></tr>
+    <tr><td class="dim">Team issuance + model allowlist</td>
+      <td><span class="ok">✓</span> <code>team_id</code> + key-level <code>models</code> allowlist</td>
+      <td><span class="ok">✓</span> VKs attach to team/customer; <code>allowed_models</code> supports <code>regex:</code>, deny-by-default <small>· <a href="https://docs.getbifrost.ai/features/governance/routing">docs</a></small></td>
+      <td>Even</td></tr>
+    <tr><td class="dim">OpenAI-compatible API</td>
+      <td><span class="ok">✓</span> standard <code>/chat/completions</code> routes</td>
+      <td><span class="ok">✓</span> <code>/v1/chat/completions</code> etc.</td>
+      <td>Even</td></tr>
+    <tr><td class="dim">DashScope / Qwen</td>
+      <td><span class="ok">✓</span> native <code>dashscope/</code> prefix + compatible-mode base URL <small>· <a href="https://docs.litellm.ai/docs/providers/dashscope">docs</a></small></td>
+      <td><span class="no">✗</span> <b>no native provider</b> (34 providers, none dashscope/qwen/aliyun); paths: custom provider on openai base / OpenRouter / upstream PR <small>· <a href="https://docs.getbifrost.ai/providers/supported-providers/overview">docs</a></small></td>
+      <td><b>LiteLLM better (hard requirement)</b></td></tr>
+    <tr><td class="dim">Semantic caching</td>
+      <td><span class="part">△</span> requires Redis</td>
+      <td><span class="ok">✓</span> stronger semantic matching, but requires a vector store and per-request <code>x-bf-cache-key</code></td>
+      <td>Even</td></tr>
+    <tr><td class="dim">License</td>
+      <td><span class="ok">✓</span> MIT (excluding <code>enterprise/</code> directory)</td>
+      <td><span class="part">△</span> <b>Apache-2.0</b>, not the commonly-cited MIT <small>· <a href="https://github.com/maximhq/bifrost/blob/dev/LICENSE">LICENSE</a></small></td>
+      <td>Legal review needed</td></tr>
+    <tr><td class="dim">Performance</td>
+      <td>official 3,000 RPS / p95 54ms; short-prompt overhead p95 8ms</td>
+      <td>official 5k RPS overhead 11µs (t3.xlarge, <b>mock upstream</b>)</td>
+      <td>~10x apart, different methodologies</td></tr>
+    <tr><td class="dim">Maturity</td>
+      <td>61,897 stars · ~1,858 contributors · since 2023-07</td>
+      <td>9,046 stars · ~201 contributors · since 2025-03</td>
+      <td>LiteLLM a generation ahead</td></tr>
+    <tr><td class="dim">Security record</td>
+      <td><span class="no">✗</span> 2026-10-21 release-pipeline poisoning (v1.107.0, GHSA-92x9-889m-jgmw); another incident 2026-03</td>
+      <td><span class="no">✗</span> 2 patched RCEs (CVE-2026-90898/86242, default-no-password root cause) + 1 SSRF</td>
+      <td>Both tainted, different natures (§6)</td></tr>
+    </tbody>
+  </table>
+  </div></div>
+</section>
+
+<section id="s2">
+  <h2><span class="n">02</span>Architecture &amp; runtime</h2>
+  <div class="duo">
+    <div class="cell lit">
+      <h4>LITELLM — Python</h4>
+      <ul>
+        <li>proxy + SDK in one repo, plus a Rust core (officially beta)</li>
+        <li><b>Hard Postgres dependency</b>: keys/budgets/spend all live in the DB; without one, budgets fail open</li>
+        <li>Config: <code>config.yaml</code> + Postgres; admin UI at <code>/ui</code></li>
+        <li>Deployment: Docker / Helm / cloud templates</li>
+      </ul>
+    </div>
+    <div class="cell bif">
+      <h4>BIFROST — Go</h4>
+      <ul>
+        <li>Single static binary with embedded React UI</li>
+        <li>Three independent stores: <code>config_store</code> (SQLite default) / <code>logs_store</code> (+PG/ClickHouse) / <code>vector_store</code> (semantic cache only)</li>
+        <li>Dual config mode: UI/DB mode, or file-only <code>config.json</code> (declarative bootstrap, hash-reconciled with the DB)</li>
+        <li>Governance/logging are built-in plugins; semantic cache / otel etc. are opt-in</li>
+      </ul>
+    </div>
+  </div>
+  <div class="callout warn"><div class="ct">Documentation contradiction (needs live testing)</div>
+  Bifrost's OSS <code>config.json</code> governance page says "Governance enforcement is always active in OSS", while the Helm page says the governance plugin "must be enabled". Actual behavior wins.</div>
+</section>
+
+<section id="s3">
+  <h2><span class="n">03</span>Governance, requirement by requirement <span class="tag">deep dive</span></h2>
+
+  <h3>Budgets / soft budgets</h3>
+  <p>LiteLLM: key-level <code>max_budget</code> + <code>budget_duration</code> + <code>soft_budget</code> (fires a Slack alert); team overage returns 422 <code>budget_exceeded</code>. Key detail: when a key belongs to a team, only team budgets are enforced — the owner's personal budget is not (since v1.95.0). Bifrost: four budget layers validated additively; any insufficient layer rejects. VKs can stack per-model limits. <b>No soft_budget</b>, and no OSS alerting channel.</p>
+
+  <h3>Spend logs &amp; pricing</h3>
+  <p>LiteLLM's <code>LiteLLM_SpendLogs</code> is directly SQL-queryable; per-alias per-token prices live in <code>model_list[].model_info</code> (including cache/image/audio/reasoning-token splits). Bifrost logs are SQL-queryable and filterable via <code>/api/logs</code> (including content_search); pricing goes through <code>pricing_overrides</code> with ten scopes, most-specific wins.</p>
+
+  <h3>Admin UI &amp; auth <span class="tag">the decisive gap</span></h3>
+  <p>Bifrost's OSS UI is feature-complete (provider config, live logs, VK/budget pages), but the <b>auth model differs</b>: a single admin username/password plus a <code>setup_token</code> needed to create the first admin; by default, an instance without a password opens the dashboard directly. Multi-user, local user directories, RBAC, audit logs, SSO/SCIM are all Enterprise — the OSS Users page is literally an "Unlock users &amp; user governance — enterprise license" placeholder. The "local user directory without SSO" we need is only offered by LiteLLM OSS.</p>
+
+  <h3>Enterprise-boundary quick reference</h3>
+  <div class="breakout"><div class="twrap"><table>
+    <thead><tr><th>Capability</th><th class="h-lit">LiteLLM Enterprise</th><th class="h-bif">Bifrost Enterprise</th></tr></thead>
+    <tbody>
+      <tr><td class="dim">SSO / IdP</td><td>SSO &gt;5 users (≤5 free)</td><td>OIDC/SCIM; multi-user requires an IdP</td></tr>
+      <tr><td class="dim">Audit logs</td><td>Enterprise</td><td>Enterprise</td></tr>
+      <tr><td class="dim">Other</td><td>key tags, <code>enforced_params</code>, team soft-budget email alerts</td><td>RBAC, access profiles, Business Unit / user-level governance, projects</td></tr>
+    </tbody>
+  </table></div></div>
+
+  <h3>Migration path (if we ever switch)</h3>
+  <p>Official CLI: <code>npx @maximhq/bifrost-migration-cli</code> reads the LiteLLM management API + <code>config.yaml</code> (optional Postgres), migrating models / orgs→customers / teams / internal users / virtual keys (model allowlists fold onto VKs), with <code>DRY_RUN=1</code> and idempotent re-runs. Known limits: no org-level model gate, partial-wildcard models skipped, custom api_bases on non-openai/anthropic/gemini/bedrock bases skipped. Switching cost drops from months to days — but it does not close a capability gap.</p>
+</section>
+
+<section id="s4">
+  <h2><span class="n">04</span>Provider support <span class="tag">DashScope / Qwen</span></h2>
+  <p>LiteLLM natively covers all Qwen models via <code>dashscope/</code>, plus <code>qwencloud/</code> and <code>qwen_ai_platform/</code> prefixes; both the China and international compatible-mode base URLs are supported. Our POC runs on <code>dashscope/</code> compatible-mode today.</p>
+  <p>Bifrost's <code>core/providers/</code> holds 34 providers, <b>none of them dashscope / qwen / aliyun</b>; yet its pricing catalog already carries <code>dashscope/*</code> (58), <code>qwencloud/*</code> (56), and <code>qwen_ai_platform/*</code> (58) entries — <b>pricing is ready, the provider implementation is missing</b>. Viable approaches:</p>
+  <ul>
+    <li>Custom provider: <code>base_provider_type="openai"</code> + compatible-mode base_url (roughly an hour to a working setup)</li>
+    <li>OpenRouter relay (the catalog carries many qwen entries)</li>
+    <li>Contribute a native provider upstream (model on <code>cerebras/</code> or <code>groq/</code>; moderate effort)</li>
+  </ul>
+  <p>Verdict: not out-of-the-box, not impossible — the cost is losing officially maintained parameter compatibility.</p>
+</section>
+
+<section id="s5">
+  <h2><span class="n">05</span>Performance &amp; resource footprint</h2>
+  <div class="bench">
+    <p class="cap"><b>Third-party reproducible benchmark</b> (secondary) · ENTERPILOT run <code style="white-space:nowrap">20260928-043817</code> · AWS c7i.large (2 vCPU) · same mock backend · Bifrost 2.2.3 vs LiteLLM 1.103.0</p>
+    <div class="brow"><div class="lab"><b>Latency p50</b>lower is better</div><div class="track"><div class="bar bif" style="width:8%"></div></div><div class="val">4.18 ms<i>Bifrost</i></div></div>
+    <div class="brow"><div class="lab"></div><div class="track"><div class="bar lit" style="width:100%"></div></div><div class="val">55.76 ms<i>LiteLLM</i></div></div>
+    <div class="brow"><div class="lab"><b>Peak memory</b>lower is better</div><div class="track"><div class="bar bif" style="width:19%"></div></div><div class="val">289.9 MB<i>Bifrost</i></div></div>
+    <div class="brow"><div class="lab"></div><div class="track"><div class="bar lit" style="width:100%"></div></div><div class="val">1,488 MB<i>LiteLLM</i></div></div>
+    <div class="brow"><div class="lab"><b>Cold start</b>lower is better</div><div class="track"><div class="bar bif" style="width:24%"></div></div><div class="val">6.50 s<i>Bifrost</i></div></div>
+    <div class="brow"><div class="lab"></div><div class="track"><div class="bar lit" style="width:100%"></div></div><div class="val">26.77 s<i>LiteLLM</i></div></div>
+    <div class="brow"><div class="lab"><b>Image size</b>lower is better</div><div class="track"><div class="bar bif" style="width:23%"></div></div><div class="val">84.8 MB<i>Bifrost</i></div></div>
+    <div class="brow"><div class="lab"></div><div class="track"><div class="bar lit" style="width:100%"></div></div><div class="val">365.0 MB<i>LiteLLM</i></div></div>
+    <div class="brow"><div class="lab"><b>Peak req/s</b>higher is better</div><div class="track"><div class="bar lit" style="width:11%"></div></div><div class="val">220<i>LiteLLM</i></div></div>
+    <div class="brow"><div class="lab"></div><div class="track"><div class="bar bif" style="width:100%"></div></div><div class="val">2,079<i>Bifrost</i></div></div>
+    <p class="bnote">Official numbers use different methodologies and are not directly comparable: Bifrost claims 11µs overhead at 5k RPS (t3.xlarge, mock upstream); LiteLLM's official figure is 3,000 RPS / p95 54ms across 33 pods. Third-party tests put LiteLLM's Rust path close to Bifrost on overhead. <b>Our read: for a ~100-user internal gateway both are far beyond need — performance is not a reason to switch; operational weight is.</b></p>
+  </div>
+</section>
+
+<section id="s6">
+  <h2><span class="n">06</span>Security &amp; supply-chain record</h2>
+  <p class="lede">Both are tainted, but in different ways: LiteLLM suffered a compromised release pipeline; Bifrost shipped unsafe defaults.</p>
+  <ul class="tl">
+    <li class="ok"><div class="when">2026-03 · LiteLLM</div><div class="what">1.82.7 / 1.82.8 poisoned builds</div><div class="how">Introduced via a trivy scanning step, same GHSA — not an isolated incident</div></li>
+    <li><div class="when">2026-10-21 · LiteLLM</div><div class="what">v1.107.0 release-pipeline poisoning (GHSA-92x9-889m-jgmw)</div><div class="how">The attacker obtained 3 developers' GitHub OAuth tokens (one an org owner), disabled branch protection, and pointed the release source at a lookalike repo <code>Berri-AI/litellm</code> (extra hyphen). All 7 PyPI wheels were exposed for 1h44m; Docker Hub/GHCR tags v1.107.0/latest/main-latest/main-stable were poisoned in the same window. The <code>cook.pth</code> payload was a credential stealer (16 modules, directly querying <code>LiteLLM_CredentialsTable</code>) plus a second-stage RCE. Official remediation: <b>reinstall and pin 1.106.2</b>, rotate all credentials. Self-admitted process flaws: temporarily relaxed release permissions and an internal proxy exposed to the public internet</div></li>
+    <li class="ok"><div class="when">Patched · Bifrost</div><div class="what">CVE-2026-90898 (CVSS 9.8) + CVE-2026-86242</div><div class="how">Unauthenticated MCP stdio client / custom plugin registration → RCE inside the container. Root cause: <code>auth_config.is_enabled=false</code> by default (no password). Fixed in v2.1.0: unauthenticated registrations return 403, setup_token introduced</div></li>
+    <li class="ok"><div class="when">Ongoing · Bifrost</div><div class="what">Supply-chain practices</div><div class="how">Actions SHA pinning + npm provenance, Snyk/CodeQL/Docker Scout, FIPS base image, non-root. No known poisoning incident of its own ("not found" ≠ "proven absent")</div></li>
+  </ul>
+  <div class="callout warn"><div class="ct">What this means for us</div>
+  Our POC runs <b>1.106.2 — exactly the officially designated safe version</b>, pulled on 10-23 with no exposure to 1.107.x, so no <code>cook.pth</code> window and key rotation is not required. But we must <b>pin the version + verify the image digest</b> and forbid floating tags like <code>latest</code> / <code>main-stable</code> (<code>latest</code> was poisoned too).</div>
+</section>
+
+<section id="s7">
+  <h2><span class="n">07</span>Community &amp; maturity</h2>
+  <p class="lede">Data from the GitHub API, 2026-10-23.</p>
+  <div class="stats">
+    <div class="stat"><div class="k">Stars / Forks</div><div class="v">61,897<span class="u">LiteLLM</span></div><div class="s">Bifrost 9,046 / 1,449</div></div>
+    <div class="stat"><div class="k">Contributors</div><div class="v">~1,858<span class="u">LiteLLM</span></div><div class="s">Bifrost ~201</div></div>
+    <div class="stat"><div class="k">First commit</div><div class="v">2023-07<span class="u">LiteLLM</span></div><div class="s">Bifrost 2025-03</div></div>
+    <div class="stat"><div class="k">Releases / 30d</div><div class="v">59<span class="u">LiteLLM</span></div><div class="s">Bifrost 100+ (multi-module tags)</div></div>
+    <div class="stat"><div class="k">Commercial backer</div><div class="v">Berri AI<span class="u">YC W23</span></div><div class="s">Bifrost → Maxim AI</div></div>
+    <div class="stat"><div class="k">Provider ecosystem</div><div class="v">100+<span class="u">LiteLLM</span></div><div class="s">Bifrost 34 + custom bases</div></div>
+  </div>
+  <p>LiteLLM is ~7x Bifrost's stars and ~9x its contributors, with clearly deeper docs and provider coverage; Bifrost iterates just as aggressively and is more modular (core/framework/transports/plugins versioned separately), but its ecosystem is a generation smaller. Both have messy version lines (LiteLLM runs 5 in parallel; Bifrost tags each module independently) — <b>version pinning is a shared discipline</b>.</p>
+</section>
+
+<section id="s8">
+  <h2><span class="n">08</span>Trade-offs for our scenario</h2>
+  <div class="callout note"><div class="ct">The cost of keeping LiteLLM (quantified)</div>
+  Hard Postgres dependency (we already run PG, so ≈ 0); Python runtime: ~25s cold start / ~1.5GB RAM / 365MB image (third-party measurements — perfectly acceptable for a ~100-user internal gateway); version chaos → pin version + digest + staged upgrades; enterprise gaps (SSO&gt;5 users, audit logs, enforced_params, key tags) — not on our critical path today, but a future SSO/compliance push hits that wall and triggers re-evaluation.</div>
+  <h3>What switching to Bifrost would buy</h3>
+  <ul>
+    <li>Zero external DB to start (SQLite) + single binary + 85MB image + 6s cold start → lower ops and DR cost</li>
+    <li>4–10x RPS/overhead ("nicer than needed" at our scale)</li>
+    <li>Finer budget hierarchy, deny-by-default + <code>regex:</code> allowlists, budget overrides</li>
+    <li>Native semantic caching (needs a vector store) and async inference</li>
+    <li>The official migration CLI brings switching cost down to engineering-days</li>
+  </ul>
+  <h3>Near-term actions (without switching)</h3>
+  <ol>
+    <li><b>Lock the POC down</b>: <code>litellm==1.106.2</code> + image digest pinning; forbid floating tags (we currently pin the tag, which can be overwritten — upgrade to a digest)</li>
+    <li>Confirm key tags / enforced_params / audit logs are not on our critical path (known: they are not)</li>
+    <li>Set "deeper DashScope needs / SSO / Postgres cost" as re-evaluation triggers; if one fires, run a parallel Bifrost POC via the migration CLI (production untouched)</li>
+    <li>Optional: stand up a read-only Bifrost instance to evaluate semantic-cache gains (note the mandatory vector store)</li>
+  </ol>
+</section>
+
+<section id="s9">
+  <h2><span class="n">09</span>Unverified / open questions</h2>
+  <p class="lede">Honesty boundary: none of the following could be confirmed from primary sources; do not rely on them in the decision.</p>
+  <ul class="unv">
+    <li><b>Bifrost "durable execution"</b>: full docs index + repo search finds no "durable"; the closest features are async inference and the agent gateway. The claim is unconfirmable today</li>
+    <li><b>Whether the governance plugin needs explicit enabling</b>: the OSS config docs and the Helm docs contradict each other; not live-tested</li>
+    <li><b>OSS/Enterprise boundary of Teams/Customers</b>: the model-limits page explicitly marks customer/team scope "coming soon"; the full surface needs live testing</li>
+    <li><b>DashScope end-to-end usability</b>: no official provider docs; whether compatible-mode-specific parameters (e.g. <code>enable_search</code>) pass through the openai base is unverified</li>
+    <li><b>Real semantic-cache benefit</b>: no published hit-rate/cost-savings data; the vector-store requirement makes net gain unknown</li>
+    <li><b>Benchmark methodology gaps</b>: all official numbers use mock upstreams; official and third-party figures are not intercomparable</li>
+    <li><b>Admin UI ergonomics</b> (bulk team key issuance, report customization): judged from docs and UI source structure only, not hands-on</li>
+    <li><b>LiteLLM incident root cause</b>: the official report says the investigation is in progress; deeper persistence cannot be ruled out yet</li>
+    <li><b>No Bifrost poisoning history</b>: this is "not found", not "proven absent"</li>
+  </ul>
+</section>
+
+<section id="src">
+  <h2><span class="n">※</span>Sources</h2>
+  <details class="srcs" open>
+    <summary>63 sources (55 primary + 8 secondary, labeled)</summary>
+    <ol>
+      <li class="sec">LiteLLM primary</li>
+      <li><a href="https://docs.litellm.ai/docs/proxy/virtual_keys">docs/proxy/virtual_keys</a> — VK semantics, inheritance, Postgres requirement</li>
+      <li><a href="https://docs.litellm.ai/docs/proxy/users">docs/proxy/users</a> — budgets/rate limits, fail-open without DB</li>
+      <li><a href="https://docs.litellm.ai/docs/proxy/team_budgets">docs/proxy/team_budgets</a> — team budgets, 422 budget_exceeded</li>
+      <li><a href="https://docs.litellm.ai/docs/proxy/ui">docs/proxy/ui</a> — local accounts, disable_env_credential_login</li>
+      <li><a href="https://docs.litellm.ai/docs/proxy/admin_ui_sso">docs/proxy/admin_ui_sso</a> — the 5-free-user SSO line</li>
+      <li><a href="https://docs.litellm.ai/docs/proxy/audit_logs">docs/proxy/audit_logs</a> — Enterprise</li>
+      <li><a href="https://docs.litellm.ai/docs/proxy/custom_pricing">docs/proxy/custom_pricing</a> — model_info pricing</li>
+      <li><a href="https://docs.litellm.ai/docs/proxy/db_info">docs/proxy/db_info</a> — SpendLogs table inventory</li>
+      <li><a href="https://docs.litellm.ai/docs/providers/dashscope">docs/providers/dashscope</a> — dashscope/ prefix and compatible-mode</li>
+      <li><a href="https://docs.litellm.ai/docs/benchmarks">docs/benchmarks</a> — official performance figures</li>
+      <li><a href="https://docs.litellm.ai/blog/security-incident-oct-21-2026">Official incident report (2026-10-21)</a> — timeline, attack chain, remediation</li>
+      <li><a href="https://github.com/advisories/GHSA-92x9-889m-jgmw">GHSA-92x9-889m-jgmw</a> — affected 1.82.7/1.82.8/1.107.0</li>
+      <li><a href="https://github.com/BerriAI/litellm/blob/main/LICENSE">LICENSE</a> — MIT (enterprise/ excluded)</li>
+      <li><a href="https://github.com/BerriAI/litellm/blob/main/litellm/proxy/management_endpoints/key_management_endpoints.py">key_management_endpoints.py</a> — soft_budget / key tags premium / enforced_params</li>
+      <li class="sec">Bifrost primary</li>
+      <li><a href="https://github.com/maximhq/bifrost">github/maximhq/bifrost</a> — Apache-2.0, Go architecture, performance claims</li>
+      <li><a href="https://docs.getbifrost.ai/features/governance/virtual-keys">features/governance/virtual-keys</a> — VK ownership/override/expiry</li>
+      <li><a href="https://docs.getbifrost.ai/features/governance/budget-and-limits">features/governance/budget-and-limits</a> — four-layer additive budgets</li>
+      <li><a href="https://docs.getbifrost.ai/features/governance/model-limits">features/governance/model-limits</a> — customer/team scope "coming soon"</li>
+      <li><a href="https://docs.getbifrost.ai/features/governance/routing">features/governance/routing</a> — deny-by-default, regex allowlists</li>
+      <li><a href="https://docs.getbifrost.ai/deployment-guides/config-json/storage">config-json/storage</a> — three-store backend matrix</li>
+      <li><a href="https://docs.getbifrost.ai/deployment-guides/config-json/governance">config-json/governance</a> — OSS-on-by-default (contradicts the Helm page)</li>
+      <li><a href="https://docs.getbifrost.ai/quickstart/gateway/setting-up-auth">setting-up-auth</a> — single admin + setup_token</li>
+      <li><a href="https://docs.getbifrost.ai/providers/custom-pricing">providers/custom-pricing</a> — pricing_overrides</li>
+      <li><a href="https://docs.getbifrost.ai/providers/custom-providers">providers/custom-providers</a> — openai-base custom providers</li>
+      <li><a href="https://docs.getbifrost.ai/providers/supported-providers/overview">supported-providers/overview</a> — 34 providers, no dashscope</li>
+      <li><a href="https://docs.getbifrost.ai/features/semantic-caching">features/semantic-caching</a> — vector-store prerequisite</li>
+      <li><a href="https://docs.getbifrost.ai/migration-guides/litellm">migration-guides/litellm</a> — migration CLI and its limits</li>
+      <li><a href="https://github.com/maximhq/bifrost/security/advisories">security/advisories</a> — 2 RCE + 1 SSRF</li>
+      <li><a href="https://www.getmaxim.ai/bifrost/blog/security-update-cve-2026-90898-and-cve-2026-86242-are-fixed-in-bifrost-v2-1-0">Official security update</a> — default-no-password root cause and fix</li>
+      <li><a href="https://docs.getbifrost.ai/enterprise/overview">enterprise/overview</a> — Enterprise increments</li>
+      <li><a href="https://getbifrost.ai/datasheet">datasheet</a> — 172 dashscope/qwen-family pricing entries</li>
+      <li><a href="https://docs.getbifrost.ai/benchmarking/getting-started">benchmarking</a> — official performance (mock upstream)</li>
+      <li class="sec">Secondary (labeled)</li>
+      <li><a href="https://github.com/ENTERPILOT/ai-gateway-reproducible-benchmark">ENTERPILOT reproducible benchmark</a> — latency/memory/image/cold start</li>
+      <li><a href="https://www.wiz.io/blog/litellm-compromised-steals-credentials">Wiz analysis</a> — malicious package behavior</li>
+      <li><a href="https://www.ox.security/blog/litellm-1-107-0-compromised-with-a-rat-infostealer/">OX Security reverse engineering</a> — payload details</li>
+      <li><a href="https://research.jfrog.com/vulnerabilities/bifrost-is-vulnerable-to-unauthenticated-remote-code-execution-via-mcp-stdio-client-registration-cve-2026-90898/">JFrog research</a> — original Bifrost CVE write-up</li>
+      <li><a href="https://www.bleepingcomputer.com/news/security/litellm-release-pipeline-hacked-to-distribute-info-stealer-malware/">BleepingComputer</a> — incident coverage</li>
+    </ol>
+  </details>
+  <p style="font-size:12.5px;color:var(--faint)">The full 63-entry source list (all LiteLLM/Bifrost doc pages and GitHub API data) is in source doc <code>litellm-vs-bifrost.md</code>, section 9.</p>
+</section>
+
+</main>
+
+<footer class="colophon">
+  Engineering decision record · based on 2026-10-23 research (55 primary + 8 secondary sources, labeled) · decision baseline = NEO-NOVA internal-gateway hard requirements ·
+  source doc: <code>~/lyon/bkyz/ai-gateway/.scratch/ai-gateway/litellm-vs-bifrost.md</code>
+</footer>
+
+<script>
+(function(){
+  var links = document.querySelectorAll('.toc a');
+  var map = {};
+  links.forEach(function(a){ map[a.getAttribute('href').slice(1)] = a; });
+  var sections = document.querySelectorAll('main section');
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if (e.isIntersecting) {
+          links.forEach(function(a){ a.classList.remove('active'); });
+          var a = map[e.target.id];
+          if (a) a.classList.add('active');
+        }
+      });
+    }, {rootMargin: '-30% 0px -60% 0px'});
+    sections.forEach(function(s){ io.observe(s); });
+  }
+})();
+</script>
+</body>
+</html>
